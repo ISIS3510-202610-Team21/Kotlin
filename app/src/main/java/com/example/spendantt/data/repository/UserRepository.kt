@@ -19,6 +19,11 @@ class UserRepository(
     // Fase 2: agregar ApiService
     // private val apiService: ApiService
 ) {
+    companion object {
+        const val TEST_USERNAME = "testuser"
+        const val TEST_EMAIL = "testuser@spendantt.local"
+        const val TEST_PASSWORD = "123456"
+    }
 
     // ── REGISTER ──────────────────────────────────────────────
     /**
@@ -90,6 +95,23 @@ class UserRepository(
     suspend fun enableFingerprint(userId: Int, enable: Boolean) {
         val user = userDao.getUserById(userId) ?: return
         userDao.updateUser(user.copy(isFingerprintEnabled = enable))
+    }
+
+    /**
+     * Crea un usuario de prueba si no existe.
+     * Util para entorno de desarrollo y pruebas manuales.
+     */
+    suspend fun ensureTestUser() {
+        if (userDao.usernameExists(TEST_USERNAME) > 0) return
+
+        val user = UserEntity(
+            username = TEST_USERNAME,
+            email = TEST_EMAIL,
+            passwordHash = hashPassword(TEST_PASSWORD),
+            displayName = "Usuario Prueba",
+            handle = "@testuser"
+        )
+        userDao.insertUser(user)
     }
 
     // ── HELPERS ───────────────────────────────────────────────

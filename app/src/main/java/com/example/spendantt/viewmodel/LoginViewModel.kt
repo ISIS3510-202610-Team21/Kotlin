@@ -50,6 +50,10 @@ class LoginViewModel(context: Context) : ViewModel() {
         _showPassword.value = !_showPassword.value
     }
 
+    fun setErrorMessage(message: String) {
+        _errorMessage.value = message
+    }
+
     fun login(onSuccess: (Int) -> Unit) {
         // Validar campos vacíos
         if (_username.value.isEmpty() || _password.value.isEmpty()) {
