@@ -47,6 +47,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 private val GoalBackground = Color(0xFFF5C333)
@@ -133,7 +134,7 @@ fun SetGoalFlowScreen(
         else -> {
             SetGoalPlanScreen(
                 planText = planText,
-                dailyAmountText = "Save\n$${formatNumber(dailyAmount)}\nper day",
+                dailyAmountText = "Save $${formatNumber(dailyAmount)} per day",
                 onBackClick = { currentStep = 2 },
                 onAlrightClick = { finished = true }
             )
@@ -325,21 +326,23 @@ fun SetGoalPlanScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-        Image(
-            painter = painterResource(id = R.drawable.ant_goal_showing),
-            contentDescription = "Ant showing plan",
-            modifier = Modifier.size(205.dp),
-            contentScale = ContentScale.Fit
-        )
+            Image(
+                painter = painterResource(id = R.drawable.ant_goal_showing),
+                contentDescription = "Ant showing plan",
+                modifier = Modifier.size(180.dp),
+                contentScale = ContentScale.Fit
+            )
 
             Spacer(modifier = Modifier.width(10.dp))
 
             Text(
                 text = dailyAmountText,
-                fontSize = 40.sp,
-                lineHeight = 40.sp,
+                fontSize = 26.sp,
+                lineHeight = 30.sp,
                 fontWeight = FontWeight.Black,
-                color = Color.Black
+                color = Color.Black,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.width(150.dp)
             )
         }
 
@@ -459,25 +462,31 @@ private fun SetGoalContainer(
 private fun formatDate(dateMillis: Long?): String {
     if (dateMillis == null) return ""
     val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    formatter.timeZone = TimeZone.getTimeZone("UTC")
     return formatter.format(Date(dateMillis))
 }
 
 private fun calculateDaysUntil(targetDateMillis: Long?): Long {
     if (targetDateMillis == null) return 0L
+    val utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        timeInMillis = targetDateMillis
+    }
+    val localTargetDate = Calendar.getInstance().apply {
+        set(Calendar.YEAR, utcCalendar.get(Calendar.YEAR))
+        set(Calendar.MONTH, utcCalendar.get(Calendar.MONTH))
+        set(Calendar.DAY_OF_MONTH, utcCalendar.get(Calendar.DAY_OF_MONTH))
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
     val todayCalendar = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }
-    val targetCalendar = Calendar.getInstance().apply {
-        timeInMillis = targetDateMillis
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    val diffMillis = targetCalendar.timeInMillis - todayCalendar.timeInMillis
+    val diffMillis = localTargetDate.timeInMillis - todayCalendar.timeInMillis
     return TimeUnit.MILLISECONDS.toDays(diffMillis).coerceAtLeast(0L)
 }
 
