@@ -6,14 +6,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -21,6 +18,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.ui.screens.auth.LoginScreen
+import com.example.spendantt.ui.screens.goal.SetGoalFlowScreen
 import com.example.spendantt.ui.theme.SpendAnttTheme
 import com.example.spendantt.viewmodel.LoginViewModel
 import kotlinx.coroutines.launch
@@ -59,13 +57,13 @@ class MainActivity : FragmentActivity() {
 
                 if (isLoggedIn.value) {
                     Scaffold { paddingValues ->
-                        Box(
+                        androidx.compose.foundation.layout.Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(paddingValues),
-                            contentAlignment = Alignment.Center
+                            contentAlignment = androidx.compose.ui.Alignment.Center
                         ) {
-                            Text("Bienvenido. Usuario ID: ${currentUserId.value}")
+                            SetGoalFlowScreen()
                         }
                     }
                 } else {
