@@ -23,6 +23,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,7 +48,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.math.ceil
 
 private val GoalBackground = Color(0xFFF5C333)
 private val GoalInputBackground = Color(0xFFF7E7AF)
@@ -69,7 +69,7 @@ fun SetGoalFlowScreen(
     val safeDate = formatDate(targetDateMillis).ifBlank { "your target date" }
     val daysRemaining = calculateDaysUntil(targetDateMillis)
     val dailyAmount = if (amountValue > 0L && daysRemaining > 0) {
-        ceil(amountValue.toDouble() / daysRemaining.toDouble()).toLong()
+        amountValue / daysRemaining
     } else {
         0L
     }
@@ -222,26 +222,28 @@ private fun SetGoalDatePickerScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = formatDate(targetDateMillis),
-            onValueChange = {},
-            placeholder = { Text(text = "Select a date", color = Color.DarkGray) },
-            readOnly = true,
-            singleLine = true,
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
+                .height(56.dp)
                 .clickable { showDatePicker = true },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = GoalInputBackground,
-                unfocusedContainerColor = GoalInputBackground,
-                focusedBorderColor = Color.Transparent,
-                unfocusedBorderColor = Color.Transparent,
-                focusedTextColor = Color.Black,
-                unfocusedTextColor = Color.Black
-            ),
+            color = GoalInputBackground,
             shape = RoundedCornerShape(2.dp)
-        )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formatDate(targetDateMillis).ifBlank { "Select a date" },
+                    color = if (targetDateMillis == null) Color.DarkGray else Color.Black,
+                    fontSize = 16.sp
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(14.dp))
 
