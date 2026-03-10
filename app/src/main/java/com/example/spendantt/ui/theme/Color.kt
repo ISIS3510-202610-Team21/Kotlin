@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 
 // Colores del Login - Verde principal
-val SpendAntGreen = Color(0xFF2DD4BF)      // Verde brillante del fondo
+val SpendAntGreenv2 = Color(0xFF2DD4BF)      // Verde brillante del fondo
 val SpendAntDarkGreen = Color(0xFF1A9E7D) // Verde oscuro para interacciones
 
 val Purple80 = Color(0xFFD0BCFF)

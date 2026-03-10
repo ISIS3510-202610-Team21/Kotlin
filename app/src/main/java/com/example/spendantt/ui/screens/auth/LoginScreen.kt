@@ -34,7 +34,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.spendantt.ui.theme.SpendAntGreen
+import com.example.spendantt.ui.theme.SpendAntGreenv2
 import com.example.spendantt.viewmodel.LoginViewModel
 
 @Composable
@@ -51,7 +51,7 @@ fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(SpendAntGreen)
+            .background(SpendAntGreenv2)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -154,7 +154,7 @@ fun LoginScreen(
             if (!useBiometricMode && viewModel.isLoading.value) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = SpendAntGreen,
+                    color = SpendAntGreenv2,
                     strokeWidth = 2.dp
                 )
             } else {

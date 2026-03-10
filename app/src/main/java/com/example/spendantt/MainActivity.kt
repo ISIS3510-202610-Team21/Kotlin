@@ -28,6 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.remember
 import com.example.spendantt.ui.navigation.AppNavigation
 import com.example.spendantt.ui.navigation.Screen
+import androidx.core.view.WindowCompat
 
 class MainActivity : FragmentActivity() {
 
@@ -37,6 +38,8 @@ class MainActivity : FragmentActivity() {
 
         val activity = this
         seedTestUser()
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
             SpendAnttTheme {

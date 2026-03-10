@@ -17,6 +17,14 @@ class LoginViewModel(context: Context) : ViewModel() {
     init {
         val database = AppDatabase.getInstance(context)
         userRepository = UserRepository(database.userDao())
+
+        viewModelScope.launch {
+            userRepository.register(
+                username = "test",
+                email = "test@test.com",
+                password = "1234"
+            )
+        }
     }
 
     // ── ESTADO ─────────────────────────────────────────────────
