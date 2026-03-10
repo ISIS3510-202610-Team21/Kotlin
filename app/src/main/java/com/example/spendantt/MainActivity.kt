@@ -24,6 +24,10 @@ import com.example.spendantt.ui.screens.auth.LoginScreen
 import com.example.spendantt.ui.theme.SpendAnttTheme
 import com.example.spendantt.viewmodel.LoginViewModel
 import kotlinx.coroutines.launch
+import androidx.navigation.compose.rememberNavController
+import androidx.compose.runtime.remember
+import com.example.spendantt.ui.navigation.AppNavigation
+import com.example.spendantt.ui.navigation.Screen
 
 class MainActivity : FragmentActivity() {
 
@@ -57,17 +61,14 @@ class MainActivity : FragmentActivity() {
                     !forceManualLogin.value &&
                     canUseFingerprint(activity)
 
-                if (isLoggedIn.value) {
-                    Scaffold { paddingValues ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(paddingValues),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Bienvenido. Usuario ID: ${currentUserId.value}")
-                        }
-                    }
+                if (isLoggedIn.value && currentUserId.value != null) {
+                    val navController = rememberNavController()
+                    AppNavigation(
+                        navController = navController,
+                        startDestination = Screen.Home.route,
+                        context = activity,
+                        currentUserId = currentUserId.value
+                    )
                 } else {
                     if (shouldUseBiometric) {
                         LoginScreen(
