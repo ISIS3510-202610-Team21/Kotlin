@@ -133,13 +133,7 @@ fun LoginScreen(
         )
 
         if (viewModel.errorMessage.value.isNotEmpty()) {
-            Text(
-                text = viewModel.errorMessage.value,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 16.dp),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Error: ${viewModel.errorMessage.value}")
         }
 
         Button(
