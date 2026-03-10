@@ -3,9 +3,7 @@ package com.example.spendantt.ui.navigation
 import android.content.Context
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -13,94 +11,116 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.IncomeRepository
+import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.ui.components.BottomNavBar
 import com.example.spendantt.ui.screens.auth.LoginScreen
+import com.example.spendantt.ui.screens.auth.RegisterScreen
+import com.example.spendantt.ui.screens.auth.WelcomeScreen
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
 import com.example.spendantt.ui.screens.home.HomeScreen
 import com.example.spendantt.viewmodel.BudgetViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
 import com.example.spendantt.viewmodel.LoginViewModel
-import androidx.compose.foundation.layout.WindowInsets
-
-
-// ── RUTAS ─────────────────────────────────────────────────────────────────────
+import com.example.spendantt.viewmodel.RegisterViewModel
 
 sealed class Screen(val route: String) {
-    object Login   : Screen("login")
-    object Home    : Screen("home")
-    object Profile : Screen("profile")
-    object Goals   : Screen("goals")
-    object Budget  : Screen("budget")
+    object Welcome    : Screen("welcome")
+    object Login      : Screen("login")
+    object Register   : Screen("register")
+    object Home       : Screen("home")
+    object Profile    : Screen("profile")
+    object Goals      : Screen("goals")
+    object Budget     : Screen("budget")
     object NewExpense : Screen("new_expense")
 }
 
-// Rutas donde NO se muestra la BottomNavBar
-private val routesWithoutNavBar = listOf(Screen.Login.route)
-
-// ── NAVEGACIÓN PRINCIPAL ──────────────────────────────────────────────────────
+private val routesWithoutNavBar = listOf(
+    Screen.Welcome.route,
+    Screen.Login.route,
+    Screen.Register.route
+)
 
 @Composable
 fun AppNavigation(
     navController: NavHostController,
-    startDestination: String,
     context: Context,
-    currentUserId: Int?
+    currentUserId: Int?,
+    hasLoggedInOnce: Boolean = false,
+    lastUserDisplayName: String = "",
+    onLoginSuccess: (Int) -> Unit
 ) {
-    // Ruta actual para saber qué icono marcar como activo
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val db = AppDatabase.getInstance(context)
+    val userRepository = remember { UserRepository(db.userDao()) }
+    var displayName by remember { mutableStateOf("") }
+    var handle by remember { mutableStateOf("") }
+
+    LaunchedEffect(currentUserId) {
+        if (currentUserId != null) {
+            val user = userRepository.getUserById(currentUserId)
+            displayName = user?.displayName ?: user?.username ?: ""
+            handle = user?.handle ?: "@${user?.username ?: ""}"
+        }
+    }
+
     Scaffold(
         bottomBar = {
-            // Solo mostrar si no estamos en Login
             if (currentRoute !in routesWithoutNavBar) {
                 BottomNavBar(
                     currentRoute = currentRoute,
                     onProfileClick = {
-                        navController.navigate(Screen.Profile.route) {
-                            launchSingleTop = true
-                        }
+                        navController.navigate(Screen.Profile.route) { launchSingleTop = true }
                     },
                     onHomeClick = {
-                        navController.navigate(Screen.Home.route) {
-                            launchSingleTop = true
-                        }
+                        navController.navigate(Screen.Home.route) { launchSingleTop = true }
                     },
                     onAddClick = {
-                        navController.navigate(Screen.NewExpense.route) {
-                            launchSingleTop = true
-                        }
+                        navController.navigate(Screen.NewExpense.route) { launchSingleTop = true }
                     },
                     onGoalsClick = {
-                        navController.navigate(Screen.Goals.route) {
-                            launchSingleTop = true
-                        }
+                        navController.navigate(Screen.Goals.route) { launchSingleTop = true }
                     },
                     onBudgetClick = {
-                        navController.navigate(Screen.Budget.route) {
-                            launchSingleTop = true
-                        }
+                        navController.navigate(Screen.Budget.route) { launchSingleTop = true }
                     }
                 )
             }
-        },
+        }
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = startDestination,
+            startDestination = Screen.Welcome.route,
             modifier = Modifier.padding(paddingValues)
         ) {
+
+            // ── WELCOME ───────────────────────────────────────
+            composable(Screen.Welcome.route) {
+                WelcomeScreen(
+                    onLoginClick = { navController.navigate(Screen.Login.route) },
+                    onRegisterClick = { navController.navigate(Screen.Register.route) },
+                    hasLoggedInOnce = hasLoggedInOnce,              // ← AGREGA
+                    lastUserDisplayName = lastUserDisplayName
+                )
+            }
 
             // ── LOGIN ─────────────────────────────────────────
             composable(Screen.Login.route) {
                 val loginViewModel = remember { LoginViewModel(context) }
                 LoginScreen(
                     viewModel = loginViewModel,
-                    onLoginSuccess = { userId ->
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                        }
-                    }
+                    onLoginSuccess = { userId -> onLoginSuccess(userId) }
+                )
+            }
+
+            // ── REGISTER ──────────────────────────────────────
+            composable(Screen.Register.route) {
+                val registerViewModel = remember { RegisterViewModel(context) }
+                RegisterScreen(
+                    viewModel = registerViewModel,
+                    onRegisterSuccess = { userId -> onLoginSuccess(userId) },
+                    onBackToLogin = { navController.popBackStack() }
                 )
             }
 
@@ -113,11 +133,9 @@ fun AppNavigation(
                 HomeScreen(viewModel = homeViewModel)
             }
 
-            // ── PROFILE + BUDGET ──────────────────────────────
-            // Profile y Budget comparten el mismo flujo (BudgetNavigation)
+            // ── PROFILE ───────────────────────────────────────
             composable(Screen.Profile.route) {
                 if (currentUserId == null) return@composable
-                val db = AppDatabase.getInstance(context)
                 val budgetViewModel = remember(currentUserId) {
                     BudgetViewModel(
                         incomeRepository = IncomeRepository(db.incomeDao()),
@@ -126,31 +144,16 @@ fun AppNavigation(
                 }
                 BudgetNavigation(
                     viewModel = budgetViewModel,
-                    displayName = "John Doe",       // TODO: traer de UserRepository
-                    handle = "@user$currentUserId",
-                    onGoalsClick = {
-                        navController.navigate(Screen.Goals.route)
-                    },
-                    onBackToMain = {
-                        navController.navigate(Screen.Home.route)
-                    }
+                    displayName = displayName,
+                    handle = handle,
+                    onGoalsClick = { navController.navigate(Screen.Goals.route) },
+                    onBackToMain = { navController.navigate(Screen.Home.route) }
                 )
             }
 
-            // ── GOALS ─────────────────────────────────────────
-            composable(Screen.Goals.route) {
-                // TODO: GoalsScreen (funcionalidad 7)
-            }
-
-            // ── NEW EXPENSE ───────────────────────────────────
-            composable(Screen.NewExpense.route) {
-                // TODO: NewExpenseScreen (funcionalidad 3)
-            }
-
-            // Budget usa la misma pantalla que Profile
+            // ── BUDGET ────────────────────────────────────────
             composable(Screen.Budget.route) {
                 if (currentUserId == null) return@composable
-                val db = AppDatabase.getInstance(context)
                 val budgetViewModel = remember(currentUserId) {
                     BudgetViewModel(
                         incomeRepository = IncomeRepository(db.incomeDao()),
@@ -159,16 +162,15 @@ fun AppNavigation(
                 }
                 BudgetNavigation(
                     viewModel = budgetViewModel,
-                    displayName = "John Doe",
-                    handle = "@user$currentUserId",
-                    onGoalsClick = {
-                        navController.navigate(Screen.Goals.route)
-                    },
-                    onBackToMain = {
-                        navController.navigate(Screen.Home.route)
-                    }
+                    displayName = displayName,
+                    handle = handle,
+                    onGoalsClick = { navController.navigate(Screen.Goals.route) },
+                    onBackToMain = { navController.navigate(Screen.Home.route) }
                 )
             }
+
+            composable(Screen.Goals.route) { /* TODO */ }
+            composable(Screen.NewExpense.route) { /* TODO */ }
         }
     }
 }
