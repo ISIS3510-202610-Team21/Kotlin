@@ -60,7 +60,7 @@ class MainActivity : FragmentActivity() {
 
                 // ── LANZAR HUELLA AUTOMÁTICAMENTE ─────────────
                 LaunchedEffect(canUseBiometric) {
-                    if (canUseBiometric) {
+                    if (hasLoggedInOnce.value && canUseFingerprint(activity)) {
                         authenticateWithFingerprint(
                             onAuthenticated = {
                                 biometricFailures.value = 0

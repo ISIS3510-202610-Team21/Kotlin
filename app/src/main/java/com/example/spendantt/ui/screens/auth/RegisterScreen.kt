@@ -180,12 +180,12 @@ fun RegisterScreen(
 
         // ── HORMIGA ABAJO ─────────────────────────────────────
         Image(
-            painter = painterResource(id = R.drawable.ant_goal_happy),
+            painter = painterResource(id = R.drawable.ant_goal_side),
             contentDescription = "SpendAnt",
             modifier = Modifier
-                .size(180.dp)
+                .size(300.dp)
                 .align(Alignment.BottomStart)
-                .offset(x = (-16).dp)
+                .offset(x = (-55).dp)
         )
     }
 }
