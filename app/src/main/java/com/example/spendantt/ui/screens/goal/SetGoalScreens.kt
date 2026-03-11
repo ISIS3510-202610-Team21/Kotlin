@@ -23,6 +23,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,13 +56,13 @@ private val GoalInputBackground = Color(0xFFF7E7AF)
 
 @Composable
 fun SetGoalFlowScreen(
+    onSaveGoal: (name: String, targetAmount: Double, deadline: Long, dailyAmount: Double) -> Unit = { _, _, _, _ -> },
     onExit: () -> Unit = {}
 ) {
     var currentStep by remember { mutableStateOf(0) }
     var amount by remember { mutableStateOf("") }
     var purpose by remember { mutableStateOf("") }
     var targetDateMillis by remember { mutableStateOf<Long?>(null) }
-    var finished by remember { mutableStateOf(false) }
 
     val amountValue = amount.toLongOrNull() ?: 0L
     val formattedAmount = "\$${formatNumber(amountValue)}"
@@ -81,29 +82,6 @@ fun SetGoalFlowScreen(
     }
 
     when {
-        finished -> {
-            SetGoalContainer(onBackClick = onExit) {
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "Goal setup completed",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "You can now continue with the rest of the app.",
-                    fontSize = 14.sp,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                GoalActionButton(text = "Done", onClick = onExit)
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
-
         currentStep == 0 -> {
             SetGoalAmountScreen(
                 amount = amount,
@@ -136,7 +114,18 @@ fun SetGoalFlowScreen(
                 planText = planText,
                 dailyAmountText = "Save $${formatNumber(dailyAmount)} per day",
                 onBackClick = { currentStep = 2 },
-                onAlrightClick = { finished = true }
+                onAlrightClick = {
+                    val deadlineMillis = targetDateMillis
+                    if (amountValue > 0L && deadlineMillis != null && purpose.isNotBlank() && daysRemaining > 0) {
+                        onSaveGoal(
+                            purpose.trim(),
+                            amountValue.toDouble(),
+                            normalizeToLocalStartOfDay(deadlineMillis),
+                            dailyAmount.toDouble()
+                        )
+                        onExit()
+                    }
+                }
             )
         }
     }
@@ -203,9 +192,16 @@ private fun SetGoalDatePickerScreen(
     onContinueClick: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    val todayUtcMillis = remember { utcTodayMillis() }
     val datePickerState = androidx.compose.material3.rememberDatePickerState(
-        initialSelectedDateMillis = targetDateMillis
+        initialSelectedDateMillis = targetDateMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return utcTimeMillis >= todayUtcMillis
+            }
+        }
     )
+    val isDateSelected = targetDateMillis != null && calculateDaysUntil(targetDateMillis) > 0
 
     SetGoalContainer(onBackClick = onBackClick) {
         Spacer(modifier = Modifier.height(42.dp))
@@ -257,7 +253,11 @@ private fun SetGoalDatePickerScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        GoalActionButton(text = "Continue", onClick = onContinueClick)
+        GoalActionButton(
+            text = "Continue",
+            onClick = onContinueClick,
+            enabled = isDateSelected
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
     }
@@ -268,7 +268,9 @@ private fun SetGoalDatePickerScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onTargetDateChange(datePickerState.selectedDateMillis)
+                        onTargetDateChange(
+                            datePickerState.selectedDateMillis?.let(::normalizeToLocalStartOfDay)
+                        )
                         showDatePicker = false
                     }
                 ) {
@@ -495,18 +497,45 @@ private fun formatNumber(value: Long): String {
 }
 
 @Composable
-private fun GoalActionButton(
+fun GoalActionButton(
     text: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Button(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+        enabled = enabled,
         modifier = Modifier
             .width(160.dp)
             .height(52.dp)
     ) {
         Text(text = text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
+}
+
+private fun utcTodayMillis(): Long {
+    val utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    return utcCalendar.timeInMillis
+}
+
+private fun normalizeToLocalStartOfDay(dateMillis: Long): Long {
+    val utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        timeInMillis = dateMillis
+    }
+    return Calendar.getInstance().apply {
+        set(Calendar.YEAR, utcCalendar.get(Calendar.YEAR))
+        set(Calendar.MONTH, utcCalendar.get(Calendar.MONTH))
+        set(Calendar.DAY_OF_MONTH, utcCalendar.get(Calendar.DAY_OF_MONTH))
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 }
