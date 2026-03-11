@@ -17,11 +17,13 @@ import com.example.spendantt.ui.screens.auth.LoginScreen
 import com.example.spendantt.ui.screens.auth.RegisterScreen
 import com.example.spendantt.ui.screens.auth.WelcomeScreen
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
+import com.example.spendantt.ui.screens.expense.NewExpenseScreen
 import com.example.spendantt.ui.screens.goal.SetGoalFlowScreen
 import com.example.spendantt.ui.screens.home.HomeScreen
 import com.example.spendantt.viewmodel.BudgetViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
 import com.example.spendantt.viewmodel.LoginViewModel
+import com.example.spendantt.viewmodel.NewExpenseViewModel
 import com.example.spendantt.viewmodel.RegisterViewModel
 
 sealed class Screen(val route: String) {
@@ -38,7 +40,8 @@ sealed class Screen(val route: String) {
 private val routesWithoutNavBar = listOf(
     Screen.Welcome.route,
     Screen.Login.route,
-    Screen.Register.route
+    Screen.Register.route,
+    Screen.NewExpense.route  // ← sin navbar en la pantalla de nuevo gasto
 )
 
 @Composable
@@ -48,7 +51,7 @@ fun AppNavigation(
     currentUserId: Int?,
     hasLoggedInOnce: Boolean = false,
     lastUserDisplayName: String = "",
-    canUseBiometric: Boolean = false,        // ← AGREGA
+    canUseBiometric: Boolean = false,
     onFingerprintClick: () -> Unit = {},
     onLoginSuccess: (Int) -> Unit
 ) {
@@ -101,13 +104,15 @@ fun AppNavigation(
             // ── WELCOME ───────────────────────────────────────
             composable(Screen.Welcome.route) {
                 WelcomeScreen(
-                    onLoginClick = { if (hasLoggedInOnce && canUseBiometric) {
-                        onFingerprintClick()
-                    } else {
-                        navController.navigate(Screen.Login.route)
-                    } },
+                    onLoginClick = {
+                        if (hasLoggedInOnce && canUseBiometric) {
+                            onFingerprintClick()
+                        } else {
+                            navController.navigate(Screen.Login.route)
+                        }
+                    },
                     onRegisterClick = { navController.navigate(Screen.Register.route) },
-                    hasLoggedInOnce = hasLoggedInOnce,              // ← AGREGA
+                    hasLoggedInOnce = hasLoggedInOnce,
                     lastUserDisplayName = lastUserDisplayName
                 )
             }
@@ -138,6 +143,23 @@ fun AppNavigation(
                     HomeViewModel(context, currentUserId)
                 }
                 HomeScreen(viewModel = homeViewModel)
+            }
+
+            // ── NEW EXPENSE ───────────────────────────────────
+            composable(Screen.NewExpense.route) {
+                if (currentUserId == null) return@composable
+                val newExpenseViewModel = remember(currentUserId) {
+                    NewExpenseViewModel(context, currentUserId)
+                }
+                NewExpenseScreen(
+                    viewModel = newExpenseViewModel,
+                    onClose = { navController.popBackStack() },
+                    onSaved = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }
+                )
             }
 
             // ── PROFILE ───────────────────────────────────────
@@ -176,19 +198,17 @@ fun AppNavigation(
                 )
             }
 
+            // ── GOALS ─────────────────────────────────────────
             composable(Screen.Goals.route) {
                 SetGoalFlowScreen(
                     onExit = {
                         val popped = navController.popBackStack()
                         if (!popped) {
-                            navController.navigate(Screen.Home.route) {
-                                launchSingleTop = true
-                            }
+                            navController.navigate(Screen.Home.route) { launchSingleTop = true }
                         }
                     }
                 )
             }
-            composable(Screen.NewExpense.route) { /* TODO */ }
         }
     }
 }

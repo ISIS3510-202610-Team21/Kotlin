@@ -4,12 +4,12 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.rememberNavController
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
@@ -17,7 +17,7 @@ import com.example.spendantt.ui.navigation.AppNavigation
 import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
 
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -143,5 +143,3 @@ class MainActivity : FragmentActivity() {
         private const val KEY_LAST_USER_ID = "last_user_id"
     }
 }
-
-
