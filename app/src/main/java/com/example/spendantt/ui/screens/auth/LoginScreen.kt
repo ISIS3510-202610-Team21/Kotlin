@@ -34,13 +34,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.spendantt.ui.theme.SpendAntGreen
+import com.example.spendantt.ui.theme.SpendAntGreenv2
 import com.example.spendantt.viewmodel.LoginViewModel
 
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel,
     onLoginSuccess: (Int) -> Unit,
+    onRegisterClick: (()-> Unit)? = null,
     loginButtonText: String = "Login",
     useBiometricMode: Boolean = false,
     onBiometricLoginClick: (() -> Unit)? = null,
@@ -51,7 +52,7 @@ fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(SpendAntGreen)
+            .background(SpendAntGreenv2)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -133,13 +134,7 @@ fun LoginScreen(
         )
 
         if (viewModel.errorMessage.value.isNotEmpty()) {
-            Text(
-                text = viewModel.errorMessage.value,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 16.dp),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Error: ${viewModel.errorMessage.value}")
         }
 
         Button(
@@ -160,7 +155,7 @@ fun LoginScreen(
             if (!useBiometricMode && viewModel.isLoading.value) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = SpendAntGreen,
+                    color = SpendAntGreenv2,
                     strokeWidth = 2.dp
                 )
             } else {
@@ -170,6 +165,12 @@ fun LoginScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
+            }
+        }
+
+        if (onRegisterClick != null) {
+            TextButton(onClick = onRegisterClick) {
+                Text(text = "Register", color = Color.Black)
             }
         }
 

@@ -12,15 +12,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.compose.rememberNavController
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.ui.screens.auth.LoginScreen
 import com.example.spendantt.ui.screens.goal.SetGoalFlowScreen
+import com.example.spendantt.ui.navigation.AppNavigation
+import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
-import com.example.spendantt.viewmodel.LoginViewModel
 import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
@@ -28,6 +32,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val activity = this
         seedTestUser()
@@ -38,7 +43,6 @@ class MainActivity : FragmentActivity() {
                     activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 }
 
-                val isLoggedIn = remember { mutableStateOf(false) }
                 val currentUserId = remember { mutableStateOf<Int?>(null) }
                 val hasLoggedInOnce = remember {
                     mutableStateOf(prefs.getBoolean(KEY_HAS_LOGGED_IN_ONCE, false))
@@ -57,84 +61,64 @@ class MainActivity : FragmentActivity() {
 
                 if (isLoggedIn.value) {
                     Scaffold { paddingValues ->
-                        androidx.compose.foundation.layout.Box(
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(paddingValues),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
+                            contentAlignment = Alignment.Center
                         ) {
-                            SetGoalFlowScreen()
+                            Text("Bienvenido. Usuario ID: ${currentUserId.value}")
                         }
                     }
-                } else {
-                    if (shouldUseBiometric) {
-                        LoginScreen(
-                            viewModel = loginViewModel,
-                            onLoginSuccess = {},
-                            loginButtonText = "Ingresar con huella",
-                            useBiometricMode = true,
-                            manualFieldsEnabled = false,
-                            showManualFallbackAction = true,
-                            onUseManualLogin = {
-                                forceManualLogin.value = true
-                                loginViewModel.setErrorMessage("")
-                            },
-                            onBiometricLoginClick = {
-                                authenticateWithFingerprint(
-                                    onAuthenticated = {
-                                        biometricFailures.value = 0
-                                        val userId = lastUserId.value
-                                        if (userId != null) {
-                                            currentUserId.value = userId
-                                            isLoggedIn.value = true
-                                            loginViewModel.setErrorMessage("")
-                                        } else {
-                                            forceManualLogin.value = true
-                                            loginViewModel.setErrorMessage(
-                                                "No hay usuario guardado. Inicia sesion manual."
-                                            )
-                                        }
-                                    },
-                                    onFailedAttempt = {
-                                        biometricFailures.value += 1
-                                        if (biometricFailures.value >= MAX_BIOMETRIC_ATTEMPTS) {
-                                            forceManualLogin.value = true
-                                            loginViewModel.setErrorMessage(
-                                                "Fallaste 5 intentos con huella. Usa login manual."
-                                            )
-                                        }
-                                    },
-                                    onFallbackToManual = {
-                                        forceManualLogin.value = true
-                                        if (biometricFailures.value < MAX_BIOMETRIC_ATTEMPTS) {
-                                            loginViewModel.setErrorMessage(
-                                                "Usa login manual para continuar."
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-                        )
-                    } else {
-                        LoginScreen(
-                            viewModel = loginViewModel,
-                            onLoginSuccess = { userId ->
-                                currentUserId.value = userId
-                                isLoggedIn.value = true
-                                hasLoggedInOnce.value = true
-                                lastUserId.value = userId
-                                biometricFailures.value = 0
-                                forceManualLogin.value = false
-                                loginViewModel.setErrorMessage("")
+                }
 
-                                prefs.edit()
-                                    .putBoolean(KEY_HAS_LOGGED_IN_ONCE, true)
-                                    .putInt(KEY_LAST_USER_ID, userId)
-                                    .apply()
+                val canUseBiometric = hasLoggedInOnce.value && canUseFingerprint(activity)
+                val navController = rememberNavController()
+
+                // ── LANZAR HUELLA AUTOMÁTICAMENTE ─────────────
+                LaunchedEffect(canUseBiometric) {
+                    if (hasLoggedInOnce.value && canUseFingerprint(activity)) {
+                        authenticateWithFingerprint(
+                            onAuthenticated = {
+                                biometricFailures.value = 0
+                                val userId = lastUserId.value
+                                if (userId != null) {
+                                    currentUserId.value = userId
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                                    }
+                                }
+                            },
+                            onFailedAttempt = {
+                                biometricFailures.value += 1
+                            },
+                            onFallbackToManual = {
+                                // No hace nada, el usuario ve Welcome con Login/Register
                             }
                         )
                     }
                 }
+
+                AppNavigation(
+                    navController = navController,
+                    context = activity,
+                    currentUserId = currentUserId.value,
+                    hasLoggedInOnce = hasLoggedInOnce.value,
+                    lastUserDisplayName = lastUserDisplayName,
+                    onLoginSuccess = { userId ->
+                        currentUserId.value = userId
+                        hasLoggedInOnce.value = true
+                        lastUserId.value = userId
+                        biometricFailures.value = 0
+                        prefs.edit()
+                            .putBoolean(KEY_HAS_LOGGED_IN_ONCE, true)
+                            .putInt(KEY_LAST_USER_ID, userId)
+                            .apply()
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Welcome.route) { inclusive = true }
+                        }
+                    }
+                )
             }
         }
     }
@@ -150,7 +134,7 @@ class MainActivity : FragmentActivity() {
     private fun canUseFingerprint(context: Context): Boolean {
         val biometricManager = BiometricManager.from(context)
         return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
-            BiometricManager.BIOMETRIC_SUCCESS
+                BiometricManager.BIOMETRIC_SUCCESS
     }
 
     private fun authenticateWithFingerprint(
@@ -162,30 +146,19 @@ class MainActivity : FragmentActivity() {
         var isHandled = false
 
         val biometricPrompt = BiometricPrompt(
-            this,
-            executor,
+            this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
-                    if (!isHandled) {
-                        isHandled = true
-                        onAuthenticated()
-                    }
+                    if (!isHandled) { isHandled = true; onAuthenticated() }
                 }
-
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
-                    if (!isHandled) {
-                        onFailedAttempt()
-                    }
+                    if (!isHandled) onFailedAttempt()
                 }
-
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    if (!isHandled) {
-                        isHandled = true
-                        onFallbackToManual()
-                    }
+                    if (!isHandled) { isHandled = true; onFallbackToManual() }
                 }
             }
         )
@@ -207,3 +180,4 @@ class MainActivity : FragmentActivity() {
         private const val MAX_BIOMETRIC_ATTEMPTS = 5
     }
 }
+
