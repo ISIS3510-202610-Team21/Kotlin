@@ -41,6 +41,7 @@ import com.example.spendantt.viewmodel.LoginViewModel
 fun LoginScreen(
     viewModel: LoginViewModel,
     onLoginSuccess: (Int) -> Unit,
+    onRegisterClick: (()-> Unit)? = null,
     loginButtonText: String = "Login",
     useBiometricMode: Boolean = false,
     onBiometricLoginClick: (() -> Unit)? = null,
@@ -164,6 +165,12 @@ fun LoginScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
+            }
+        }
+
+        if (onRegisterClick != null) {
+            TextButton(onClick = onRegisterClick) {
+                Text(text = "Register", color = Color.Black)
             }
         }
 

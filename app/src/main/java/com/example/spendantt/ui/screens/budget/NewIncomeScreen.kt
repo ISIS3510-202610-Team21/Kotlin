@@ -48,7 +48,11 @@ fun NewIncomeScreen(
         SimpleDateFormat("M/dd/yyyy", Locale.getDefault()).format(Date(formState.startDate))
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SpendAntWhite)
+    ) {
 
         // ── HEADER ────────────────────────────────────────────
         SpendAntHeader(
