@@ -18,9 +18,10 @@ import com.example.spendantt.ui.screens.auth.RegisterScreen
 import com.example.spendantt.ui.screens.auth.WelcomeScreen
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
 import com.example.spendantt.ui.screens.expense.NewExpenseScreen
-import com.example.spendantt.ui.screens.goal.SetGoalFlowScreen
+import com.example.spendantt.ui.screens.goal.GoalsRoute
 import com.example.spendantt.ui.screens.home.HomeScreen
 import com.example.spendantt.viewmodel.BudgetViewModel
+import com.example.spendantt.viewmodel.GoalsViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
 import com.example.spendantt.viewmodel.LoginViewModel
 import com.example.spendantt.viewmodel.NewExpenseViewModel
@@ -200,7 +201,12 @@ fun AppNavigation(
 
             // ── GOALS ─────────────────────────────────────────
             composable(Screen.Goals.route) {
-                SetGoalFlowScreen(
+                if (currentUserId == null) return@composable
+                val goalsViewModel = remember(currentUserId) {
+                    GoalsViewModel(context, currentUserId)
+                }
+                GoalsRoute(
+                    viewModel = goalsViewModel,
                     onExit = {
                         val popped = navController.popBackStack()
                         if (!popped) {
