@@ -17,6 +17,7 @@ import com.example.spendantt.ui.screens.auth.LoginScreen
 import com.example.spendantt.ui.screens.auth.RegisterScreen
 import com.example.spendantt.ui.screens.auth.WelcomeScreen
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
+import com.example.spendantt.ui.screens.goal.SetGoalFlowScreen
 import com.example.spendantt.ui.screens.home.HomeScreen
 import com.example.spendantt.viewmodel.BudgetViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
@@ -175,7 +176,18 @@ fun AppNavigation(
                 )
             }
 
-            composable(Screen.Goals.route) { /* TODO */ }
+            composable(Screen.Goals.route) {
+                SetGoalFlowScreen(
+                    onExit = {
+                        val popped = navController.popBackStack()
+                        if (!popped) {
+                            navController.navigate(Screen.Home.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                )
+            }
             composable(Screen.NewExpense.route) { /* TODO */ }
         }
     }
