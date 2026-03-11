@@ -6,12 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -20,8 +14,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
-import com.example.spendantt.ui.screens.auth.LoginScreen
-import com.example.spendantt.ui.screens.goal.SetGoalFlowScreen
 import com.example.spendantt.ui.navigation.AppNavigation
 import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
@@ -52,23 +44,14 @@ class MainActivity : FragmentActivity() {
                     mutableStateOf(if (savedId == -1) null else savedId)
                 }
                 val biometricFailures = remember { mutableStateOf(0) }
-                val forceManualLogin = remember { mutableStateOf(false) }
 
-                val loginViewModel = remember { LoginViewModel(activity) }
-                val shouldUseBiometric = hasLoggedInOnce.value &&
-                    !forceManualLogin.value &&
-                    canUseFingerprint(activity)
-
-                if (isLoggedIn.value) {
-                    Scaffold { paddingValues ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(paddingValues),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Bienvenido. Usuario ID: ${currentUserId.value}")
-                        }
+                var lastUserDisplayName by remember { mutableStateOf("") }
+                LaunchedEffect(lastUserId.value) {
+                    if (lastUserId.value != null) {
+                        val db = AppDatabase.getInstance(activity)
+                        val repo = UserRepository(db.userDao())
+                        val user = repo.getUserById(lastUserId.value!!)
+                        lastUserDisplayName = user?.displayName ?: user?.username ?: ""
                     }
                 }
 
@@ -180,4 +163,3 @@ class MainActivity : FragmentActivity() {
         private const val MAX_BIOMETRIC_ATTEMPTS = 5
     }
 }
-
