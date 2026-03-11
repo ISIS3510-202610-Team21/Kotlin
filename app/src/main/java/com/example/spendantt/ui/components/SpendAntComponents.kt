@@ -87,6 +87,10 @@ fun SpendAntTextField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
+            textStyle = LocalTextStyle.current.copy(
+                color = SpendAntTextPrimary,
+                fontSize = 15.sp
+            ),
             placeholder = {
                 Text(
                     text = placeholder,

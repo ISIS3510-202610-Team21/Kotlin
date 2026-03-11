@@ -156,6 +156,7 @@ fun NewExpenseScreen(
                     onValueChange = { viewModel.onNameChange(it) },
                     placeholder = { Text("Expense name") },
                     singleLine = true,
+                    textStyle = LocalTextStyle.current.copy(color = SpendAntTextPrimary),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -170,6 +171,7 @@ fun NewExpenseScreen(
                     onValueChange = { viewModel.onAmountChange(it) },
                     placeholder = { Text("$ Amount") },
                     singleLine = true,
+                    textStyle = LocalTextStyle.current.copy(color = SpendAntTextPrimary),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),

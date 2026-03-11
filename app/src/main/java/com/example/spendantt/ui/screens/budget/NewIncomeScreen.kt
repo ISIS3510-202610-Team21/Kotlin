@@ -75,7 +75,7 @@ fun NewIncomeScreen(
                 value = formState.name,
                 onValueChange = viewModel::onNameChange,
                 placeholder = "Income name",
-                errorMessage = formState.nameError
+                errorMessage = formState.nameError,
             )
 
             // Campo: Monto
@@ -84,7 +84,8 @@ fun NewIncomeScreen(
                 onValueChange = viewModel::onAmountChange,
                 placeholder = "32,000",
                 leadingText = "$",
-                errorMessage = formState.amountError
+                errorMessage = formState.amountError,
+
             )
 
             // ── TYPE OF INCOME ────────────────────────────────
@@ -235,6 +236,7 @@ private fun RecurrenceSelector(
             onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) onIntervalChange(it) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            textStyle = LocalTextStyle.current.copy(color = SpendAntTextPrimary),
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = SpendAntGreen,

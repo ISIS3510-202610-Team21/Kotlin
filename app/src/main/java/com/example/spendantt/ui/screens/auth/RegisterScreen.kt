@@ -73,6 +73,7 @@ fun RegisterScreen(
                 value = username,
                 onValueChange = viewModel::onUsernameChange,
                 placeholder = { Text("Username", color = SpendAntTextSecondary) },
+                textStyle = LocalTextStyle.current.copy(color = SpendAntTextPrimary),
                 singleLine = true,
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -91,6 +92,7 @@ fun RegisterScreen(
                 value = email,
                 onValueChange = viewModel::onEmailChange,
                 placeholder = { Text("Email", color = SpendAntTextSecondary) },
+                textStyle = LocalTextStyle.current.copy(color = SpendAntTextPrimary),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 shape = RoundedCornerShape(8.dp),
@@ -110,6 +112,7 @@ fun RegisterScreen(
                 value = password,
                 onValueChange = viewModel::onPasswordChange,
                 placeholder = { Text("Password", color = SpendAntTextSecondary) },
+                textStyle = LocalTextStyle.current.copy(color = SpendAntTextPrimary),
                 singleLine = true,
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {

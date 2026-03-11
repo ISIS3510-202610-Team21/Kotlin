@@ -19,7 +19,7 @@ val IncomeCardBlue       = Color(0xFFE3F2FD)   // Card genérico azul claro
 
 // Texto
 val SpendAntTextPrimary   = Color(0xFF1A1A1A)
-val SpendAntTextSecondary = Color(0xFF757575)
+val SpendAntTextSecondary = Color(0xFF6E6E6E)
 val SpendAntTextOnGreen   = Color(0xFFFFFFFF)
 
 // Error
