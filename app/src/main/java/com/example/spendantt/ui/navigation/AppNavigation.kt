@@ -47,6 +47,8 @@ fun AppNavigation(
     currentUserId: Int?,
     hasLoggedInOnce: Boolean = false,
     lastUserDisplayName: String = "",
+    canUseBiometric: Boolean = false,        // ← AGREGA
+    onFingerprintClick: () -> Unit = {},
     onLoginSuccess: (Int) -> Unit
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -98,7 +100,11 @@ fun AppNavigation(
             // ── WELCOME ───────────────────────────────────────
             composable(Screen.Welcome.route) {
                 WelcomeScreen(
-                    onLoginClick = { navController.navigate(Screen.Login.route) },
+                    onLoginClick = { if (hasLoggedInOnce && canUseBiometric) {
+                        onFingerprintClick()
+                    } else {
+                        navController.navigate(Screen.Login.route)
+                    } },
                     onRegisterClick = { navController.navigate(Screen.Register.route) },
                     hasLoggedInOnce = hasLoggedInOnce,              // ← AGREGA
                     lastUserDisplayName = lastUserDisplayName

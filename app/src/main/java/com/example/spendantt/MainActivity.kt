@@ -10,14 +10,12 @@ import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.ui.navigation.AppNavigation
 import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
-import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
 
@@ -27,7 +25,6 @@ class MainActivity : FragmentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val activity = this
-        seedTestUser()
 
         setContent {
             SpendAnttTheme {
@@ -43,7 +40,6 @@ class MainActivity : FragmentActivity() {
                     val savedId = prefs.getInt(KEY_LAST_USER_ID, -1)
                     mutableStateOf(if (savedId == -1) null else savedId)
                 }
-                val biometricFailures = remember { mutableStateOf(0) }
 
                 var lastUserDisplayName by remember { mutableStateOf("") }
                 LaunchedEffect(lastUserId.value) {
@@ -58,12 +54,16 @@ class MainActivity : FragmentActivity() {
                 val canUseBiometric = hasLoggedInOnce.value && canUseFingerprint(activity)
                 val navController = rememberNavController()
 
-                // ── LANZAR HUELLA AUTOMÁTICAMENTE ─────────────
-                LaunchedEffect(canUseBiometric) {
-                    if (hasLoggedInOnce.value && canUseFingerprint(activity)) {
+                AppNavigation(
+                    navController = navController,
+                    context = activity,
+                    currentUserId = currentUserId.value,
+                    hasLoggedInOnce = hasLoggedInOnce.value,
+                    lastUserDisplayName = lastUserDisplayName,
+                    canUseBiometric = canUseBiometric,
+                    onFingerprintClick = {
                         authenticateWithFingerprint(
                             onAuthenticated = {
-                                biometricFailures.value = 0
                                 val userId = lastUserId.value
                                 if (userId != null) {
                                     currentUserId.value = userId
@@ -72,27 +72,16 @@ class MainActivity : FragmentActivity() {
                                     }
                                 }
                             },
-                            onFailedAttempt = {
-                                biometricFailures.value += 1
-                            },
+                            onFailedAttempt = {},
                             onFallbackToManual = {
-                                // No hace nada, el usuario ve Welcome con Login/Register
+                                navController.navigate(Screen.Login.route)
                             }
                         )
-                    }
-                }
-
-                AppNavigation(
-                    navController = navController,
-                    context = activity,
-                    currentUserId = currentUserId.value,
-                    hasLoggedInOnce = hasLoggedInOnce.value,
-                    lastUserDisplayName = lastUserDisplayName,
+                    },
                     onLoginSuccess = { userId ->
                         currentUserId.value = userId
                         hasLoggedInOnce.value = true
                         lastUserId.value = userId
-                        biometricFailures.value = 0
                         prefs.edit()
                             .putBoolean(KEY_HAS_LOGGED_IN_ONCE, true)
                             .putInt(KEY_LAST_USER_ID, userId)
@@ -103,14 +92,6 @@ class MainActivity : FragmentActivity() {
                     }
                 )
             }
-        }
-    }
-
-    private fun seedTestUser() {
-        lifecycleScope.launch {
-            val database = AppDatabase.getInstance(applicationContext)
-            val repository = UserRepository(database.userDao())
-            repository.ensureTestUser()
         }
     }
 
@@ -160,7 +141,7 @@ class MainActivity : FragmentActivity() {
         private const val PREFS_NAME = "auth_prefs"
         private const val KEY_HAS_LOGGED_IN_ONCE = "has_logged_in_once"
         private const val KEY_LAST_USER_ID = "last_user_id"
-        private const val MAX_BIOMETRIC_ATTEMPTS = 5
     }
 }
+
 
