@@ -30,7 +30,7 @@ fun BudgetNavigation(
     onGoalsClick: () -> Unit,   // Navega a Goals (otra funcionalidad)
     onBackToMain: () -> Unit    // Sale del flujo de Budget
 ) {
-    var currentScreen by remember { mutableStateOf(BudgetScreen.PROFILE) }
+    var currentScreen by remember { mutableStateOf(BudgetScreen.BUDGET_AND_INCOME) }
 
     when (currentScreen) {
         BudgetScreen.PROFILE -> {

@@ -11,14 +11,8 @@ import kotlinx.coroutines.launch
 
 class RegisterViewModel(context: Context) : ViewModel() {
 
-    private val userRepository: UserRepository
+    private val userRepository = UserRepository(AppDatabase.getInstance(context).userDao())
 
-    init {
-        val database = AppDatabase.getInstance(context)
-        userRepository = UserRepository(database.userDao())
-    }
-
-    // ── ESTADO ────────────────────────────────────────────────
     private val _username = mutableStateOf("")
     val username: State<String> = _username
 
@@ -37,7 +31,6 @@ class RegisterViewModel(context: Context) : ViewModel() {
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
 
-    // ── ACCIONES ──────────────────────────────────────────────
     fun onUsernameChange(value: String) { _username.value = value; _errorMessage.value = "" }
     fun onEmailChange(value: String) { _email.value = value; _errorMessage.value = "" }
     fun onPasswordChange(value: String) { _password.value = value; _errorMessage.value = "" }

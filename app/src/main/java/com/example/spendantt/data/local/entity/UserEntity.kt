@@ -16,19 +16,21 @@ data class UserEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
+    val firebaseUid: String? = null,    // ← Firebase Auth UID
+
     val username: String,
     val email: String,
     val passwordHash: String,
 
-    // ── PERFIL (Set a Budget muestra perfil) ──────────────────
-    val displayName: String? = null,    // Ej: "John Doe"
-    val handle: String? = null,         // Ej: "@JohnDoe1"
-    val avatarPath: String? = null,     // Ruta local de la foto
+    val displayName: String? = null,
+    val handle: String? = null,
+    val avatarPath: String? = null,
 
     val isFingerprintEnabled: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis(),
+    val createdAt: Long = System.currentTimeMillis()
 
     // Fase 2: descomentar cuando haya backend
     // val serverId: String? = null,
     // val isSynced: Boolean = false
 )
+
