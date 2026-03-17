@@ -1,5 +1,6 @@
 package com.example.spendantt.ui.screens.goal
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,15 +24,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spendantt.R
 import com.example.spendantt.ui.theme.SpendAntGreen
 import com.example.spendantt.viewmodel.GoalListItemUiState
 import com.example.spendantt.viewmodel.GoalsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private val GoalsEmptyBackground = Color(0xFFF5C333)
 
 @Composable
 fun GoalsRoute(
@@ -103,6 +110,11 @@ fun GoalsScreen(
             return
         }
 
+        if (goals.isEmpty()) {
+            EmptyGoalsState(onNewGoalClick = onNewGoalClick)
+            return
+        }
+
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -126,6 +138,44 @@ fun GoalsScreen(
                 onClick = onNewGoalClick
             )
         }
+    }
+}
+
+@Composable
+private fun EmptyGoalsState(
+    onNewGoalClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(GoalsEmptyBackground)
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+
+        Image(
+            painter = painterResource(id = R.drawable.ant_goal_worry),
+            contentDescription = "No goals yet",
+            modifier = Modifier.size(240.dp),
+            contentScale = ContentScale.Fit
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Create your first goal",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.Black,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        GoalActionButton(text = "New Goal", onClick = onNewGoalClick)
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

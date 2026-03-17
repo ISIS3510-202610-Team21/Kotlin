@@ -8,22 +8,22 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
-import com.example.spendantt.data.local.entity.GoalEntity
 import com.example.spendantt.data.local.entity.LabelEntity
 import com.example.spendantt.data.preferences.GoalPreferences
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.GoalRepository
+import com.example.spendantt.data.repository.IncomeRepository
+import com.example.spendantt.util.DailyFinanceCalculator
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Calendar
-import java.util.concurrent.TimeUnit
 
 class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
 
     private val expenseRepository: ExpenseRepository
     private val goalRepository: GoalRepository
-    private val goalPreferences: GoalPreferences
+    private val incomeRepository: IncomeRepository
 
     private val _dailyBudget = mutableStateOf(0.0)
     val dailyBudget: State<Double> = _dailyBudget
@@ -53,7 +53,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         val database = AppDatabase.getInstance(context)
         expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
         goalRepository = GoalRepository(database.goalDao())
-        goalPreferences = GoalPreferences(context)
+        incomeRepository = IncomeRepository(database.incomeDao())
         loadHomeData()
     }
 
@@ -61,14 +61,18 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         _isLoading.value = true
         observeExpenses()
         observeGoals()
+        observeIncomesForBudget()
     }
 
     fun refreshDailyBudget() {
         viewModelScope.launch {
             try {
+                val incomes = incomeRepository.getIncomesByUser(userId).first()
                 val activeGoals = goalRepository.getActiveGoals(userId).first()
-                val selectedGoal = resolveSelectedGoal(activeGoals)
-                _dailyBudget.value = selectedGoal?.let(::calculateDailyBudget) ?: 0.0
+                _dailyBudget.value = (
+                    DailyFinanceCalculator.sumDailyIncome(incomes) -
+                        DailyFinanceCalculator.sumDailyGoals(activeGoals)
+                    ).coerceAtLeast(0.0)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error refreshing goals"
             }
@@ -188,8 +192,11 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         viewModelScope.launch {
             try {
                 goalRepository.getActiveGoals(userId).collectLatest { goals ->
-                    val selectedGoal = resolveSelectedGoal(goals)
-                    _dailyBudget.value = selectedGoal?.let(::calculateDailyBudget) ?: 0.0
+                    val incomes = incomeRepository.getIncomesByUser(userId).first()
+                    _dailyBudget.value = (
+                        DailyFinanceCalculator.sumDailyIncome(incomes) -
+                            DailyFinanceCalculator.sumDailyGoals(goals)
+                        ).coerceAtLeast(0.0)
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error loading goals"
@@ -197,28 +204,20 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         }
     }
 
-    private fun resolveSelectedGoal(goals: List<GoalEntity>): GoalEntity? {
-        if (goals.isEmpty()) {
-            goalPreferences.clearSelectedGoalId(userId)
-            return null
+    private fun observeIncomesForBudget() {
+        viewModelScope.launch {
+            try {
+                incomeRepository.getIncomesByUser(userId).collectLatest { incomes ->
+                    val activeGoals = goalRepository.getActiveGoals(userId).first()
+                    _dailyBudget.value = (
+                        DailyFinanceCalculator.sumDailyIncome(incomes) -
+                            DailyFinanceCalculator.sumDailyGoals(activeGoals)
+                        ).coerceAtLeast(0.0)
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Error loading incomes"
+            }
         }
-
-        val selectedGoalId = goalPreferences.getSelectedGoalId(userId)
-        val goal = when {
-            selectedGoalId != null -> goals.firstOrNull { it.id == selectedGoalId }
-            goals.size == 1 -> goals.first()
-            else -> goals.first()
-        } ?: goals.first()
-
-        goalPreferences.setSelectedGoalId(userId, goal.id)
-        return goal
-    }
-
-    private fun calculateDailyBudget(goal: GoalEntity): Double {
-        val totalDays = TimeUnit.MILLISECONDS
-            .toDays(startOfDay(goal.deadline) - startOfDay(goal.createdAt))
-            .coerceAtLeast(1L)
-        return goal.targetAmount / totalDays.toDouble()
     }
 
     private fun getMonthDateRange(): Pair<Long, Long> {
@@ -274,15 +273,5 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         val end = calendar.timeInMillis
 
         return Pair(start, end)
-    }
-
-    private fun startOfDay(timeMillis: Long): Long {
-        return Calendar.getInstance().apply {
-            timeInMillis = timeMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
     }
 }
