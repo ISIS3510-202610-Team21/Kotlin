@@ -225,6 +225,36 @@ fun NewExpenseScreen(
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
                 }
+
+                if (uiState.isUploadingImage) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = SpendAntGreen
+                        )
+                        Text("Uploading receipt...", fontSize = 13.sp, color = SpendAntBlack)
+                    }
+                }
+
+                if (uiState.isProcessingOcr) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = SpendAntGreen
+                        )
+                        Text("Reading receipt...", fontSize = 13.sp, color = SpendAntBlack)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))

@@ -6,20 +6,15 @@ import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseLabelCrossRef
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
 import com.example.spendantt.data.local.entity.RecurrenceUnit
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 
-/**
- * CAMBIOS vs versión anterior:
- * + insertRecurringExpense()     → guarda gasto recurrente con nextOccurrenceDate
- * + processDueRecurringExpenses()→ genera automáticamente los gastos recurrentes pendientes
- * + getRecurringExpenses()       → lista de gastos recurrentes activos
- */
 class ExpenseRepository(
     private val expenseDao: ExpenseDao,
     private val labelDao: LabelDao,
-    // Fase 2: agregar ApiService
-    // private val apiService: ApiService
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
 
     // ── INSERTAR ──────────────────────────────────────────────
@@ -28,7 +23,6 @@ class ExpenseRepository(
         labelIds: List<Int> = emptyList()
     ): Result<Long> {
         return try {
-            // Si es recurrente, calcular nextOccurrenceDate
             val expenseToSave = if (expense.isRecurring) {
                 expense.copy(nextOccurrenceDate = calculateNextOccurrence(
                     from = expense.date,
@@ -37,23 +31,24 @@ class ExpenseRepository(
                 ))
             } else expense
 
+            // 1. Guardar en Room
             val expenseId = expenseDao.insertExpense(expenseToSave)
             labelIds.forEach { labelId ->
                 expenseDao.insertExpenseLabelCrossRef(
                     ExpenseLabelCrossRef(expenseId.toInt(), labelId)
                 )
             }
+
+            // 2. Sincronizar con Firestore
+            syncExpenseToFirestore(expenseToSave.copy(id = expenseId.toInt()))
+
             Result.success(expenseId)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ── RECURRENCIA (NUEVO) ───────────────────────────────────
-    /**
-     * Revisa y genera automáticamente los gastos recurrentes que ya vencieron.
-     * Llamar al abrir la app o con un WorkManager en background.
-     */
+    // ── RECURRENCIA ───────────────────────────────────────────
     suspend fun processDueRecurringExpenses(userId: Int): Result<Int> {
         return try {
             val now = System.currentTimeMillis()
@@ -61,16 +56,15 @@ class ExpenseRepository(
             var generated = 0
 
             dueExpenses.forEach { template ->
-                // Crear el nuevo gasto con la fecha de hoy
                 val newExpense = template.copy(
                     id = 0,
                     date = now,
                     createdAt = now,
-                    nextOccurrenceDate = null   // El nuevo no es el template
+                    nextOccurrenceDate = null
                 )
-                expenseDao.insertExpense(newExpense)
+                val newId = expenseDao.insertExpense(newExpense)
+                syncExpenseToFirestore(newExpense.copy(id = newId.toInt()))
 
-                // Actualizar el template con la próxima fecha
                 val nextDate = calculateNextOccurrence(
                     from = template.nextOccurrenceDate ?: now,
                     interval = template.recurrenceInterval ?: 1,
@@ -86,26 +80,21 @@ class ExpenseRepository(
         }
     }
 
-    fun getRecurringExpenses(userId: Int): Flow<List<ExpenseEntity>> {
-        return expenseDao.getRecurringExpenses(userId)
-    }
+    fun getRecurringExpenses(userId: Int): Flow<List<ExpenseEntity>> =
+        expenseDao.getRecurringExpenses(userId)
 
     // ── OBTENER ───────────────────────────────────────────────
-    fun getExpensesWithLabels(userId: Int): Flow<List<ExpenseWithLabels>> {
-        return expenseDao.getExpensesWithLabels(userId)
-    }
+    fun getExpensesWithLabels(userId: Int): Flow<List<ExpenseWithLabels>> =
+        expenseDao.getExpensesWithLabels(userId)
 
-    fun getExpensesByDateRange(userId: Int, from: Long, to: Long): Flow<List<ExpenseWithLabels>> {
-        return expenseDao.getExpensesByDateRange(userId, from, to)
-    }
+    fun getExpensesByDateRange(userId: Int, from: Long, to: Long): Flow<List<ExpenseWithLabels>> =
+        expenseDao.getExpensesByDateRange(userId, from, to)
 
-    suspend fun getExpenseById(expenseId: Int): ExpenseWithLabels? {
-        return expenseDao.getExpenseWithLabels(expenseId)
-    }
+    suspend fun getExpenseById(expenseId: Int): ExpenseWithLabels? =
+        expenseDao.getExpenseWithLabels(expenseId)
 
-    fun getPendingCategoryExpenses(userId: Int): Flow<List<ExpenseEntity>> {
-        return expenseDao.getPendingCategoryExpenses(userId)
-    }
+    fun getPendingCategoryExpenses(userId: Int): Flow<List<ExpenseEntity>> =
+        expenseDao.getPendingCategoryExpenses(userId)
 
     // ── ACTUALIZAR ────────────────────────────────────────────
     suspend fun updateExpense(
@@ -120,6 +109,7 @@ class ExpenseRepository(
                     ExpenseLabelCrossRef(expense.id, labelId)
                 )
             }
+            syncExpenseToFirestore(expense)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -130,8 +120,10 @@ class ExpenseRepository(
         return try {
             val expenseWithLabels = expenseDao.getExpenseWithLabels(expenseId)
                 ?: return Result.failure(Exception("Gasto no encontrado"))
-            expenseDao.updateExpense(expenseWithLabels.expense.copy(isPendingCategory = false))
+            val updated = expenseWithLabels.expense.copy(isPendingCategory = false)
+            expenseDao.updateExpense(updated)
             expenseDao.insertExpenseLabelCrossRef(ExpenseLabelCrossRef(expenseId, labelId))
+            syncExpenseToFirestore(updated)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -143,6 +135,11 @@ class ExpenseRepository(
         return try {
             expenseDao.deleteExpenseLabels(expense.id)
             expenseDao.deleteExpense(expense)
+            // Eliminar de Firestore
+            firestore.collection("expenses")
+                .document("${expense.userId}_${expense.id}")
+                .delete()
+                .await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -153,6 +150,37 @@ class ExpenseRepository(
     fun getTotalSpent(userId: Int): Flow<Double?> = expenseDao.getTotalSpent(userId)
     fun getTotalSpentInRange(userId: Int, from: Long, to: Long): Flow<Double?> =
         expenseDao.getTotalSpentInRange(userId, from, to)
+
+    // ── FIRESTORE SYNC ────────────────────────────────────────
+    private suspend fun syncExpenseToFirestore(expense: ExpenseEntity) {
+        try {
+            val data = mapOf(
+                "id" to expense.id,
+                "userId" to expense.userId,
+                "name" to expense.name,
+                "amount" to expense.amount,
+                "date" to expense.date,
+                "time" to expense.time,
+                "latitude" to expense.latitude,
+                "longitude" to expense.longitude,
+                "locationName" to expense.locationName,
+                "source" to expense.source.name,
+                "receiptImagePath" to expense.receiptImagePath,
+                "isPendingCategory" to expense.isPendingCategory,
+                "isRecurring" to expense.isRecurring,
+                "recurrenceInterval" to expense.recurrenceInterval,
+                "recurrenceUnit" to expense.recurrenceUnit?.name,
+                "nextOccurrenceDate" to expense.nextOccurrenceDate,
+                "createdAt" to expense.createdAt
+            )
+            firestore.collection("expenses")
+                .document("${expense.userId}_${expense.id}")
+                .set(data)
+                .await()
+        } catch (e: Exception) {
+            // Fallo silencioso — Room ya tiene los datos
+        }
+    }
 
     // ── HELPER ────────────────────────────────────────────────
     private fun calculateNextOccurrence(from: Long, interval: Int, unit: RecurrenceUnit): Long {

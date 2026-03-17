@@ -17,6 +17,7 @@ import com.example.spendantt.ui.screens.auth.LoginScreen
 import com.example.spendantt.ui.screens.auth.RegisterScreen
 import com.example.spendantt.ui.screens.auth.WelcomeScreen
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
+import com.example.spendantt.ui.screens.budget.ProfileScreen
 import com.example.spendantt.ui.screens.expense.NewExpenseScreen
 import com.example.spendantt.ui.screens.goal.GoalsRoute
 import com.example.spendantt.ui.screens.home.HomeScreen
@@ -26,6 +27,7 @@ import com.example.spendantt.viewmodel.HomeViewModel
 import com.example.spendantt.viewmodel.LoginViewModel
 import com.example.spendantt.viewmodel.NewExpenseViewModel
 import com.example.spendantt.viewmodel.RegisterViewModel
+
 
 sealed class Screen(val route: String) {
     object Welcome    : Screen("welcome")
@@ -174,12 +176,13 @@ fun AppNavigation(
                         userId = currentUserId
                     )
                 }
-                BudgetNavigation(
+                ProfileScreen(
                     viewModel = budgetViewModel,
                     displayName = displayName,
                     handle = handle,
+                    onIncomeClick = { navController.navigate(Screen.Budget.route) },
                     onGoalsClick = { navController.navigate(Screen.Goals.route) },
-                    onBackToMain = { navController.navigate(Screen.Home.route) }
+                    onEditClick = { }
                 )
             }
 

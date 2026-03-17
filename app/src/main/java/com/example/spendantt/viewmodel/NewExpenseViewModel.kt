@@ -7,10 +7,17 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseSource
+import com.example.spendantt.data.ocr.OcrProcessor
 import com.example.spendantt.data.repository.ExpenseRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.DataOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -23,19 +30,28 @@ data class NewExpenseUiState(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val receiptImageUri: Uri? = null,
+    val receiptStorageUrl: String? = null,
     val source: ExpenseSource = ExpenseSource.MANUAL,
+    val isUploadingImage: Boolean = false,
+    val isProcessingOcr: Boolean = false,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val error: String? = null
 )
 
 class NewExpenseViewModel(
-    context: Context,
+    private val context: Context,
     private val userId: Int
 ) : ViewModel() {
 
     private val db = AppDatabase.getInstance(context)
     private val repository = ExpenseRepository(db.expenseDao(), db.labelDao())
+    private val ocrProcessor = OcrProcessor(context)
+
+    private val cloudinaryCloudName = "dpvrhtjka"
+    private val cloudinaryUploadPreset = "SpendAnt"
+    private val cloudinaryUploadUrl =
+        "https://api.cloudinary.com/v1_1/$cloudinaryCloudName/image/upload"
 
     private val _uiState = MutableStateFlow(NewExpenseUiState())
     val uiState: StateFlow<NewExpenseUiState> = _uiState
@@ -63,13 +79,86 @@ class NewExpenseViewModel(
             receiptImageUri = uri,
             source = ExpenseSource.OCR
         )
-        // Fase OCR: aquí se llamará processReceiptOcr(uri)
+        // Subir imagen y procesar OCR en paralelo
+        uploadReceiptToCloudinary(uri)
+        processOcr(uri)
     }
 
-    /**
-     * Llamado por el procesador OCR para autocompletar campos.
-     * Solo sobreescribe campos que el OCR pudo detectar (non-null).
-     */
+    // ── OCR ───────────────────────────────────────────────────
+    private fun processOcr(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isProcessingOcr = true)
+            try {
+                val result = ocrProcessor.processReceipt(uri)
+                autoFillFromReceipt(
+                    name = result.name,
+                    amount = result.amount,
+                    date = result.date,
+                    time = result.time,
+                    locationName = result.locationName
+                )
+            } catch (e: Exception) {
+                // Fallo silencioso — el usuario puede llenar manualmente
+            } finally {
+                _uiState.value = _uiState.value.copy(isProcessingOcr = false)
+            }
+        }
+    }
+
+    // ── CLOUDINARY ────────────────────────────────────────────
+    private fun uploadReceiptToCloudinary(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isUploadingImage = true)
+            try {
+                val url = withContext(Dispatchers.IO) { uploadToCloudinary(uri) }
+                _uiState.value = _uiState.value.copy(
+                    receiptStorageUrl = url,
+                    isUploadingImage = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isUploadingImage = false)
+            }
+        }
+    }
+
+    private fun uploadToCloudinary(uri: Uri): String {
+        val boundary = "spendant_${System.currentTimeMillis()}"
+        val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw Exception("No se pudo leer el archivo")
+        val fileBytes = inputStream.readBytes()
+        inputStream.close()
+
+        val connection = URL(cloudinaryUploadUrl).openConnection() as HttpURLConnection
+        connection.apply {
+            requestMethod = "POST"
+            doOutput = true
+            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+        }
+
+        DataOutputStream(connection.outputStream).use { out ->
+            out.writeBytes("--$boundary\r\n")
+            out.writeBytes("Content-Disposition: form-data; name=\"upload_preset\"\r\n\r\n")
+            out.writeBytes("$cloudinaryUploadPreset\r\n")
+            out.writeBytes("--$boundary\r\n")
+            out.writeBytes("Content-Disposition: form-data; name=\"folder\"\r\n\r\n")
+            out.writeBytes("receipts/$userId\r\n")
+            out.writeBytes("--$boundary\r\n")
+            out.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"receipt.jpg\"\r\n")
+            out.writeBytes("Content-Type: image/jpeg\r\n\r\n")
+            out.write(fileBytes)
+            out.writeBytes("\r\n--$boundary--\r\n")
+        }
+
+        val responseCode = connection.responseCode
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            throw Exception("Error al subir imagen: $responseCode")
+        }
+
+        val response = connection.inputStream.bufferedReader().readText()
+        return JSONObject(response).getString("secure_url")
+    }
+
+    // ── AUTOFILL OCR ──────────────────────────────────────────
     fun autoFillFromReceipt(
         name: String? = null,
         amount: String? = null,
@@ -91,6 +180,7 @@ class NewExpenseViewModel(
         )
     }
 
+    // ── GUARDAR ───────────────────────────────────────────────
     fun saveExpense() {
         val state = _uiState.value
         val name = state.name.trim()
@@ -117,7 +207,7 @@ class NewExpenseViewModel(
                     longitude = state.longitude,
                     locationName = state.locationName.ifEmpty { null },
                     source = state.source,
-                    receiptImagePath = state.receiptImageUri?.toString()
+                    receiptImagePath = state.receiptStorageUrl ?: state.receiptImageUri?.toString()
                 )
                 repository.insertExpense(expense)
                 _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)

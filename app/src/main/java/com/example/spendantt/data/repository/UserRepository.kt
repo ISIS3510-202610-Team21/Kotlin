@@ -2,6 +2,9 @@ package com.example.spendantt.data.repository
 
 import com.example.spendantt.data.local.dao.UserDao
 import com.example.spendantt.data.local.entity.UserEntity
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 
 /**
@@ -16,116 +19,108 @@ import java.security.MessageDigest
  */
 class UserRepository(
     private val userDao: UserDao,
-    // Fase 2: agregar ApiService
-    // private val apiService: ApiService
+    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
 ) {
-    companion object {
-        const val TEST_USERNAME = "testuser"
-        const val TEST_EMAIL = "testuser@spendantt.local"
-        const val TEST_PASSWORD = "123456"
-    }
 
     // ── REGISTER ──────────────────────────────────────────────
-    /**
-     * Registra un nuevo usuario.
-     * Retorna Result.success con el usuario creado o Result.failure con el error.
-     */
     suspend fun register(
         username: String,
         email: String,
         password: String
     ): Result<UserEntity> {
         return try {
-            // Validar que no exista el username
             if (userDao.usernameExists(username) > 0) {
                 return Result.failure(Exception("El nombre de usuario ya existe"))
             }
-            // Validar que no exista el email
-            if (userDao.emailExists(email) > 0) {
-                return Result.failure(Exception("El email ya está registrado"))
-            }
 
+            // 1. Crear en Firebase Auth
+            val authResult = firebaseAuth
+                .createUserWithEmailAndPassword(email, password)
+                .await()
+
+            val firebaseUid = authResult.user?.uid
+                ?: return Result.failure(Exception("Error al crear usuario en Firebase"))
+
+            // 2. Guardar en Room con firebaseUid
             val user = UserEntity(
+                firebaseUid = firebaseUid,
                 username = username,
                 email = email,
-                passwordHash = hashPassword(password)
+                passwordHash = hashPassword(password),
+                displayName = username,
+                handle = "@$username"
             )
-
             val id = userDao.insertUser(user)
             Result.success(user.copy(id = id.toInt()))
 
-            // Fase 2: también registrar en backend
-            // val response = apiService.register(RegisterRequest(username, email, password))
-            // userDao.insertUser(user.copy(serverId = response.id, isSynced = true))
-
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(mapFirebaseError(e))
         }
     }
 
     // ── LOGIN ─────────────────────────────────────────────────
-    /**
-     * Login por usuario y contraseña.
-     * Retorna el usuario si las credenciales son correctas, null si no.
-     */
     suspend fun login(username: String, password: String): Result<UserEntity> {
         return try {
-            val user = userDao.login(username, hashPassword(password))
+            // 1. Buscar usuario en Room por username para obtener email
+            val localUser = userDao.getUserByUsername(username)
                 ?: return Result.failure(Exception("Usuario o contraseña incorrectos"))
-            Result.success(user)
 
-            // Fase 2: verificar también con backend
-            // val response = apiService.login(LoginRequest(username, password))
-            // Guardar token en DataStore/SharedPreferences
+            // 2. Login en Firebase Auth con email
+            val authResult = firebaseAuth
+                .signInWithEmailAndPassword(localUser.email, password)
+                .await()
+
+            val firebaseUid = authResult.user?.uid
+                ?: return Result.failure(Exception("Error de autenticación"))
+
+            // 3. Actualizar firebaseUid si no estaba guardado
+            if (localUser.firebaseUid == null) {
+                userDao.updateUser(localUser.copy(firebaseUid = firebaseUid))
+            }
+
+            Result.success(localUser.copy(firebaseUid = firebaseUid))
 
         } catch (e: Exception) {
-            Result.failure(e)
+            // Fallback offline: si no hay internet, login local con Room
+            val localUser = userDao.login(username, hashPassword(password))
+            if (localUser != null) {
+                Result.success(localUser)
+            } else {
+                Result.failure(mapFirebaseError(e))
+            }
         }
     }
 
-    // ── FINGERPRINT ───────────────────────────────────────────
-    /**
-     * Obtiene el último usuario logueado para mostrar en la pantalla de huella.
-     * La verificación de huella real se hace con BiometricPrompt en el ViewModel.
-     */
-    suspend fun getLastLoggedUser(): UserEntity? {
-        return userDao.getLastLoggedUser()
-    }
+    // ── HELPERS ───────────────────────────────────────────────
+    suspend fun getUserById(userId: Int): UserEntity? = userDao.getUserById(userId)
+
+    suspend fun getLastLoggedUser(): UserEntity? = userDao.getLastLoggedUser()
 
     suspend fun enableFingerprint(userId: Int, enable: Boolean) {
         val user = userDao.getUserById(userId) ?: return
         userDao.updateUser(user.copy(isFingerprintEnabled = enable))
     }
 
-    /**
-     * Crea un usuario de prueba si no existe.
-     * Util para entorno de desarrollo y pruebas manuales.
-     */
-    suspend fun ensureTestUser() {
-        if (userDao.usernameExists(TEST_USERNAME) > 0) return
+    fun getCurrentFirebaseUser(): FirebaseUser? = firebaseAuth.currentUser
 
-        val user = UserEntity(
-            username = TEST_USERNAME,
-            email = TEST_EMAIL,
-            passwordHash = hashPassword(TEST_PASSWORD),
-            displayName = "Usuario Prueba",
-            handle = "@testuser"
-        )
-        userDao.insertUser(user)
-    }
+    fun signOut() = firebaseAuth.signOut()
 
-    // ── HELPERS ───────────────────────────────────────────────
-    suspend fun getUserById(userId: Int): UserEntity? {
-        return userDao.getUserById(userId)
-    }
-
-    /**
-     * Hash SHA-256 de la contraseña.
-     * Fase 2: El backend hará su propio hashing (bcrypt), esto es solo para local.
-     */
     private fun hashPassword(password: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        val hashBytes = digest.digest(password.toByteArray())
-        return hashBytes.joinToString("") { "%02x".format(it) }
+        return digest.digest(password.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    private fun mapFirebaseError(e: Exception): Exception {
+        return when {
+            e.message?.contains("email address is already in use") == true ->
+                Exception("El email ya está registrado")
+            e.message?.contains("password is invalid") == true ||
+                    e.message?.contains("no user record") == true ->
+                Exception("Usuario o contraseña incorrectos")
+            e.message?.contains("network") == true ||
+                    e.message?.contains("unable to resolve host") == true ->
+                Exception("Sin conexión a internet")
+            else -> Exception(e.message ?: "Error desconocido")
+        }
     }
 }
