@@ -45,8 +45,8 @@ class RegisterViewModel(context: Context) : ViewModel() {
             _errorMessage.value = "Enter a valid email"
             return
         }
-        if (_password.value.length < 4) {
-            _errorMessage.value = "Password must be at least 4 characters"
+        if (_password.value.length < 6) {
+            _errorMessage.value = "Password must be at least 6 characters"
             return
         }
 
