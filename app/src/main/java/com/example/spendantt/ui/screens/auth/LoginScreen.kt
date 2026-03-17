@@ -1,6 +1,8 @@
 package com.example.spendantt.ui.screens.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,20 +10,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -41,8 +42,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.zIndex
 import com.example.spendantt.R
+import com.example.spendantt.ui.components.BlackButton
+import com.example.spendantt.ui.components.SpendAntButton
+import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreenv2
 import com.example.spendantt.viewmodel.LoginViewModel
 
@@ -59,7 +66,19 @@ fun LoginScreen(
     manualFieldsEnabled: Boolean = true
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp
-    val uiScale = (screenWidth / 424f).coerceIn(0.88f, 1.12f)
+    val screenHeight = LocalConfiguration.current.screenHeightDp
+    val uiScale = (screenWidth / 424f).coerceIn(0.93f, 1.12f)
+    val antWidthFraction = when {
+        screenWidth < 360 -> 0.62f
+        screenWidth < 400 -> 0.65f
+        else -> 0.68f
+    }
+    val antBottomInset = when {
+        screenHeight < 700 -> 250f
+        screenHeight < 800 -> 230f
+        else -> 210f
+    }
+    val antYOffset = 0f
 
     Box(
         modifier = Modifier
@@ -68,42 +87,40 @@ fun LoginScreen(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = (40 * uiScale).dp),
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = (28 * uiScale).dp)
+                .padding(bottom = (antBottomInset * uiScale).dp)
+                .zIndex(1f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            Text(
-                text = "SpendAnt",
-                fontSize = (52 * uiScale).sp,
-                fontWeight = FontWeight.ExtraBold,
-                fontStyle = FontStyle.Italic,
-                color = Color.Black,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = (132 * uiScale).dp)
-            )
-
-            Text(
-                text = "Your Finance Pal",
-                fontSize = (16 * uiScale).sp,
-                fontStyle = FontStyle.Italic,
-                color = Color.Black,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = (4 * uiScale).dp, bottom = (70 * uiScale).dp)
+            Image(
+                painter = painterResource(R.drawable.logo),
+                contentDescription = "SpendAnt",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .requiredWidth((screenWidth * 1.5f).dp)
+                    .padding(top = (100 * uiScale).dp, bottom = (15 * uiScale).dp)
             )
 
             OutlinedTextField(
                 value = viewModel.username.value,
                 onValueChange = { viewModel.onUsernameChange(it) },
                 placeholder = {
-                    Text("Username", color = Color(0xFF4F545A), fontSize = (14 * uiScale).sp)
+                    Text(
+                        "Username",
+                        color = Color(0xFF4F545A),
+                        fontSize = (14 * uiScale).sp,
+                        fontFamily = SpendAntFontFamily,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height((56 * uiScale).dp)
-                    .padding(bottom = (8 * uiScale).dp)
                     .clip(RoundedCornerShape(8.dp)),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(3.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = Color(0xFFD1E7DA),
                     focusedContainerColor = Color(0xFFD1E7DA),
@@ -117,21 +134,27 @@ fun LoginScreen(
                 ),
                 enabled = manualFieldsEnabled && !viewModel.isLoading.value,
                 singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = (14 * uiScale).sp)
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontFamily = SpendAntFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = (14 * uiScale).sp,
+                    lineHeight = (16 * uiScale).sp // Reducir el interlineado
+                )
             )
-            HorizontalDivider(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = (20 * uiScale).dp),
-                thickness = 1.dp,
-                color = Color(0x33000000)
-            )
+
+            Spacer(modifier = Modifier.height((14 * uiScale).dp))
 
             OutlinedTextField(
                 value = viewModel.password.value,
                 onValueChange = { viewModel.onPasswordChange(it) },
                 placeholder = {
-                    Text("Password", color = Color(0xFF4F545A), fontSize = (14 * uiScale).sp)
+                    Text(
+                        "Password",
+                        color = Color(0xFF4F545A),
+                        fontSize = (14 * uiScale).sp,
+                        fontFamily = SpendAntFontFamily,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 },
                 visualTransformation = if (viewModel.showPassword.value) {
                     VisualTransformation.None
@@ -150,12 +173,12 @@ fun LoginScreen(
                                 Icons.Filled.VisibilityOff
                             },
                             contentDescription = if (viewModel.showPassword.value) {
-                                "Ocultar contrasena"
+                                "Hide password"
                             } else {
-                                "Mostrar contrasena"
+                                "Show password"
                             },
                             tint = Color(0xFF111111),
-                            modifier = Modifier.size((24 * uiScale).dp)
+                            modifier = Modifier.size((20 * uiScale).dp)
                         )
                     }
                 },
@@ -163,7 +186,7 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .height((56 * uiScale).dp)
                     .clip(RoundedCornerShape(8.dp)),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(3.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = Color(0xFFD1E7DA),
                     focusedContainerColor = Color(0xFFD1E7DA),
@@ -177,26 +200,29 @@ fun LoginScreen(
                 ),
                 enabled = manualFieldsEnabled && !viewModel.isLoading.value,
                 singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = (14 * uiScale).sp)
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontFamily = SpendAntFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = (14 * uiScale).sp,
+                    lineHeight = (18 * uiScale).sp
+                )
             )
-            HorizontalDivider(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = (36 * uiScale).dp),
-                thickness = 1.dp,
-                color = Color(0x33000000)
-            )
+
+            Spacer(modifier = Modifier.height((32 * uiScale).dp))
 
             if (viewModel.errorMessage.value.isNotEmpty()) {
                 Text(
-                    text = "Error: ${viewModel.errorMessage.value}",
-                    color = Color(0xFF7D0000),
+                    text = "${viewModel.errorMessage.value}",
+                    color = Color.White,
                     fontSize = 14.sp,
+                    fontFamily = SpendAntFontFamily,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
             }
 
-            Button(
+            BlackButton(
+                text = loginButtonText,
                 onClick = {
                     if (useBiometricMode) {
                         onBiometricLoginClick?.invoke()
@@ -204,43 +230,40 @@ fun LoginScreen(
                         viewModel.login(onLoginSuccess)
                     }
                 },
-                modifier = Modifier
-                    .width((132 * uiScale).dp)
-                    .height((58 * uiScale).dp),
-                shape = RoundedCornerShape((16 * uiScale).dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
-                enabled = if (useBiometricMode) true else !viewModel.isLoading.value
-            ) {
-                if (!useBiometricMode && viewModel.isLoading.value) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size((20 * uiScale).dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = loginButtonText,
-                        fontSize = (30 * uiScale).sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
+                enabled = if (useBiometricMode) true else !viewModel.isLoading.value,
+                isLoading = !useBiometricMode && viewModel.isLoading.value,
+                width = (120 * uiScale).dp,
+                height = (48 * uiScale).dp,
+                cornerRadius = (12 * uiScale).dp,
+                fontSize = (16 * uiScale).sp
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = (20 * uiScale).dp),
+                    .padding(top = (1 * uiScale).dp),
                 horizontalArrangement = Arrangement.Center
             ) {
                 if (onRegisterClick != null) {
                     TextButton(onClick = onRegisterClick) {
-                        Text(text = "Register", color = Color.Black, fontSize = 16.sp)
+                        Text(
+                            text = "Register",
+                            color = Color.Black,
+                            fontSize = 15.sp,
+                            fontFamily = SpendAntFontFamily,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
 
                 if (showManualFallbackAction && onUseManualLogin != null) {
                     TextButton(onClick = onUseManualLogin) {
-                        Text(text = "Usar login manual", color = Color.Black, fontSize = 16.sp)
+                        Text(
+                            text = "Use manual login",
+                            color = Color.Black,
+                            fontSize = 16.sp,
+                            fontFamily = SpendAntFontFamily,
+                            fontWeight = FontWeight.SemiBold
+                        )
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = null,
@@ -255,12 +278,31 @@ fun LoginScreen(
         }
 
         Image(
-            painter = painterResource(id = R.drawable.ant_goal_side),
+            painter = painterResource(id = R.drawable.ant_login),
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
+                .zIndex(0f)
                 .align(Alignment.BottomStart)
-                .fillMaxWidth(0.66f)
+                .offset(x = (-4).dp, y = (antYOffset * uiScale).dp)
+                .fillMaxWidth(antWidthFraction)
         )
     }
+}
+
+
+@Preview(showBackground = true)
+@Composable
+fun LoginScreenPreview() {
+
+    val context = LocalContext.current
+    val viewModel = LoginViewModel(context)
+
+    LoginScreen(
+        viewModel = viewModel,
+        onLoginSuccess = {},
+        onRegisterClick = {},
+        onBiometricLoginClick = {},
+        onUseManualLogin = {}
+    )
 }

@@ -96,7 +96,7 @@ fun NewIncomeScreen(
                     text = "Type of Income",
                     color = SpendAntTextSecondary,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.SemiBold
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
@@ -200,7 +200,7 @@ private fun ToggleChip(
             text = label,
             color = if (isSelected) SpendAntWhite else SpendAntBlack,
             fontSize = 14.sp,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

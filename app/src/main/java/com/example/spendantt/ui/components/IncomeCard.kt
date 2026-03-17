@@ -68,7 +68,7 @@ fun IncomeCard(
             text = formatAmount(income.amount),
             color = SpendAntTextPrimary,
             fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

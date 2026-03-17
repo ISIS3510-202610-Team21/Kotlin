@@ -126,7 +126,7 @@ fun NewExpenseScreen(
                 Text(
                     text = "New Expense",
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = SpendAntBlack,
                     modifier = Modifier.align(Alignment.Center)
                 )
@@ -190,7 +190,7 @@ fun NewExpenseScreen(
                     Text(
                         text = "+ Label",
                         color = SpendAntBlack,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp
                     )
                 }
@@ -341,7 +341,7 @@ fun NewExpenseScreen(
                 Text(
                     text = "New Receipt",
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = SpendAntBlack
                 )
 
@@ -433,7 +433,7 @@ private fun ReceiptOptionButton(
             text = label,
             fontSize = 12.sp,
             color = SpendAntBlack,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

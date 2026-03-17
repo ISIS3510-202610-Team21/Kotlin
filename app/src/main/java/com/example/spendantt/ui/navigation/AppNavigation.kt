@@ -113,6 +113,7 @@ fun AppNavigation(
                         }
                     },
                     onRegisterClick = { navController.navigate(Screen.Register.route) },
+                    onLoginWithOtherUserClick = { navController.navigate(Screen.Login.route) },
                     hasLoggedInOnce = hasLoggedInOnce,
                     lastUserDisplayName = lastUserDisplayName
                 )
@@ -123,7 +124,8 @@ fun AppNavigation(
                 val loginViewModel = remember { LoginViewModel(context) }
                 LoginScreen(
                     viewModel = loginViewModel,
-                    onLoginSuccess = { userId -> onLoginSuccess(userId) }
+                    onLoginSuccess = { userId -> onLoginSuccess(userId) },
+                    onRegisterClick = { navController.navigate(Screen.Register.route) }
                 )
             }
 

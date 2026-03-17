@@ -50,7 +50,7 @@ fun SpendAntHeader(
             text = title,
             color = SpendAntTextOnGreen,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.align(Alignment.Center)
         )
 
@@ -100,7 +100,7 @@ fun SpendAntTextField(
                         text = leadingText,
                         color = SpendAntTextPrimary,
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             } else null,
@@ -194,7 +194,7 @@ fun SpendAntToggle(
                     text = option,
                     color = if (isSelected) SpendAntTextOnGreen else SpendAntTextSecondary,
                     fontSize = 14.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             }

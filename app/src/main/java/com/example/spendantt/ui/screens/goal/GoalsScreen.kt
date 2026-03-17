@@ -85,7 +85,7 @@ fun GoalsScreen(
             Text(
                 text = "Goals",
                 fontSize = 30.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = Color.Black,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -172,7 +172,7 @@ private fun GoalListCard(
                 Text(
                     text = goal.name,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = Color.Black
                 )
                 Text(
@@ -190,7 +190,7 @@ private fun GoalListCard(
             Text(
                 text = "${goal.progressPercent}%",
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = Color.Black
             )
         }
