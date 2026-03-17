@@ -56,7 +56,7 @@ fun ProfileScreen(
                 text = "Profile",
                 color = SpendAntTextOnGreen,
                 fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.Center)
             )
             IconButton(
@@ -96,7 +96,7 @@ fun ProfileScreen(
             text = displayName,
             color = SpendAntTextPrimary,
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.SemiBold
         )
         Text(
             text = handle,

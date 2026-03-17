@@ -301,7 +301,7 @@ fun SetGoalPlanScreen(
         Text(
             text = "\"We have a plan\"",
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             color = Color.Black,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
@@ -341,7 +341,7 @@ fun SetGoalPlanScreen(
                 text = dailyAmountText,
                 fontSize = 26.sp,
                 lineHeight = 30.sp,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.SemiBold,
                 color = Color.Black,
                 textAlign = TextAlign.Start,
                 modifier = Modifier.width(150.dp)
@@ -440,7 +440,7 @@ private fun SetGoalContainer(
             Text(
                 text = "x",
                 fontSize = 20.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 color = Color.Black,
                 modifier = Modifier
                     .padding(4.dp)
@@ -452,7 +452,7 @@ private fun SetGoalContainer(
         Text(
             text = "Set Goal",
             fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             color = Color.Black,
             modifier = Modifier.padding(top = 6.dp)
         )
@@ -511,7 +511,7 @@ fun GoalActionButton(
             .width(160.dp)
             .height(52.dp)
     ) {
-        Text(text = text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(text = text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

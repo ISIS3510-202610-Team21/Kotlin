@@ -2,6 +2,7 @@ package com.example.spendantt.ui.screens.home.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -9,42 +10,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
+import com.example.spendantt.ui.theme.SpendAntFontFamily
 import java.text.DecimalFormat
-import java.text.SimpleDateFormat
-import java.util.*
 
 @Composable
-fun ExpenseListItem(expense: ExpenseWithLabels) {
+fun ExpenseListItem(expense: ExpenseWithLabels, modifier: Modifier = Modifier) {
     val firstLabel = expense.labels.firstOrNull()
     val labelName = firstLabel?.name ?: "Other"
     val labelEmoji = firstLabel?.iconEmoji ?: "💰"
     val backgroundColor = stringToColor(labelName)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .background(Color.White)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .background(backgroundColor.copy(alpha = 0.22f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Emoji/Icono circular
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .background(backgroundColor.copy(alpha = 0.2f), shape = CircleShape),
+                .size(46.dp)
+                .background(backgroundColor, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = labelEmoji,
-                fontSize = 24.sp
+                fontSize = 22.sp
             )
         }
 
-        // Información del gasto
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -52,22 +51,26 @@ fun ExpenseListItem(expense: ExpenseWithLabels) {
         ) {
             Text(
                 text = expense.expense.name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = SpendAntFontFamily,
+                color = Color.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = labelName,
-                fontSize = 12.sp,
-                color = Color.Gray
+                fontSize = 13.sp,
+                fontFamily = SpendAntFontFamily,
+                color = Color(0xFF5F6368)
             )
         }
 
-        // Monto
         Text(
             text = "COP ${DecimalFormat("#,##0").format(expense.expense.amount)}",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = SpendAntFontFamily,
             color = Color.Black
         )
     }
