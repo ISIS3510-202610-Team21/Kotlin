@@ -34,12 +34,6 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private val _categoryExpenses = mutableStateOf<Map<String, Double>>(emptyMap())
     val categoryExpenses: State<Map<String, Double>> = _categoryExpenses
 
-    private val _todayExpenses = mutableStateOf<List<ExpenseWithLabels>>(emptyList())
-    val todayExpenses: State<List<ExpenseWithLabels>> = _todayExpenses
-
-    private val _yesterdayExpenses = mutableStateOf<List<ExpenseWithLabels>>(emptyList())
-    val yesterdayExpenses: State<List<ExpenseWithLabels>> = _yesterdayExpenses
-
     private val _allExpenses = mutableStateOf<List<ExpenseWithLabels>>(emptyList())
     val allExpenses: State<List<ExpenseWithLabels>> = _allExpenses
 
@@ -82,17 +76,18 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private fun observeExpenses() {
         viewModelScope.launch {
             try {
-                val monthRange = getMonthDateRange()
-                expenseRepository.getExpensesByDateRange(
-                    userId,
-                    monthRange.first,
-                    monthRange.second
-                ).collectLatest { expenses ->
-                    _allExpenses.value = expenses
-                    _monthlyExpenses.value = expenses.sumOf { it.expense.amount }
+                expenseRepository.getExpensesWithLabels(userId).collectLatest { expenses ->
+                    val sortedExpenses = expenses.sortedByDescending { it.expense.date }
+                    _allExpenses.value = sortedExpenses
+
+                    val monthRange = getMonthDateRange()
+                    val monthlyExpenses = sortedExpenses.filter {
+                        it.expense.date in monthRange.first..monthRange.second
+                    }
+                    _monthlyExpenses.value = monthlyExpenses.sumOf { it.expense.amount }
 
                     val categoryMap = mutableMapOf<String, Double>()
-                    expenses.forEach { expenseWithLabels ->
+                    monthlyExpenses.forEach { expenseWithLabels ->
                         expenseWithLabels.labels.forEach { label ->
                             categoryMap[label.name] =
                                 (categoryMap[label.name] ?: 0.0) + expenseWithLabels.expense.amount
@@ -107,77 +102,6 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                         _monthlyExpenses.value = 600000.0
                     }
                     _categoryExpenses.value = categoryMap
-
-                    val today = getTodayRange()
-                    val yesterday = getYesterdayRange()
-                    val todayReal = expenses.filter { it.expense.date in today.first..today.second }
-                    val yesterdayReal = expenses.filter { it.expense.date in yesterday.first..yesterday.second }
-
-                    if (expenses.isEmpty()) {
-                        val now = System.currentTimeMillis()
-                        _todayExpenses.value = listOf(
-                            ExpenseWithLabels(
-                                expense = ExpenseEntity(
-                                    id = -1,
-                                    userId = userId,
-                                    name = "Chick & Chips Lunch",
-                                    amount = 23000.0,
-                                    date = now,
-                                    time = "13:10"
-                                ),
-                                labels = listOf(
-                                    LabelEntity(
-                                        id = -1,
-                                        name = "Food",
-                                        iconEmoji = "\uD83C\uDF54",
-                                        userId = userId
-                                    )
-                                )
-                            ),
-                            ExpenseWithLabels(
-                                expense = ExpenseEntity(
-                                    id = -2,
-                                    userId = userId,
-                                    name = "TM To the University",
-                                    amount = 3500.0,
-                                    date = now,
-                                    time = "08:30"
-                                ),
-                                labels = listOf(
-                                    LabelEntity(
-                                        id = -2,
-                                        name = "Transport",
-                                        iconEmoji = "\uD83D\uDE8C",
-                                        userId = userId
-                                    )
-                                )
-                            )
-                        )
-
-                        _yesterdayExpenses.value = listOf(
-                            ExpenseWithLabels(
-                                expense = ExpenseEntity(
-                                    id = -3,
-                                    userId = userId,
-                                    name = "Google Drive Month",
-                                    amount = 3500.0,
-                                    date = now - 86_400_000L,
-                                    time = "19:00"
-                                ),
-                                labels = listOf(
-                                    LabelEntity(
-                                        id = -3,
-                                        name = "Services",
-                                        iconEmoji = "\uD83D\uDCA1",
-                                        userId = userId
-                                    )
-                                )
-                            )
-                        )
-                    } else {
-                        _todayExpenses.value = todayReal
-                        _yesterdayExpenses.value = yesterdayReal
-                    }
 
                     _isLoading.value = false
                 }

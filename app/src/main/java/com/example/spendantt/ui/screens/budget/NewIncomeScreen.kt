@@ -240,7 +240,10 @@ private fun RecurrenceSelector(
                 focusedBorderColor = SpendAntGreen,
                 focusedContainerColor = SpendAntGreenLight,
                 unfocusedContainerColor = SpendAntGreenLight,
-                unfocusedBorderColor = SpendAntGreenLight
+                unfocusedBorderColor = SpendAntGreenLight,
+                focusedTextColor = SpendAntBlack,
+                unfocusedTextColor = SpendAntBlack,
+                cursorColor = SpendAntBlack
             ),
             modifier = Modifier.width(52.dp)  // más chiquito
         )
@@ -267,7 +270,7 @@ private fun RecurrenceSelector(
             ) {
                 unitOptions.forEach { (recUnit, label) ->
                     DropdownMenuItem(
-                        text = { Text(label) },
+                        text = { Text(label, color = SpendAntBlack) },
                         onClick = { onUnitChange(recUnit); expanded = false }
                     )
                 }

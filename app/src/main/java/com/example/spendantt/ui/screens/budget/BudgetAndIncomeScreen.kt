@@ -1,6 +1,7 @@
 package com.example.spendantt.ui.screens.budget
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -27,7 +28,11 @@ fun BudgetAndIncomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SpendAntWhite)
+    ) {
 
         // ── HEADER ────────────────────────────────────────────
         SpendAntHeader(
@@ -39,7 +44,10 @@ fun BudgetAndIncomeScreen(
         // ── LISTA DE INGRESOS ─────────────────────────────────
         if (uiState.isLoading) {
             Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(SpendAntWhite),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(color = SpendAntGreen)
@@ -47,7 +55,10 @@ fun BudgetAndIncomeScreen(
         } else if (uiState.incomes.isEmpty()) {
             // ── ESTADO VACÍO CON HORMIGA ──────────────────────
             Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(SpendAntWhite),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
