@@ -73,7 +73,7 @@ private fun HomeScreenContent(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF7F7F2)),
+            .background(Color.White),
         contentPadding = PaddingValues(bottom = 110.dp)
     ) {
         item {
@@ -103,7 +103,7 @@ private fun HomeScreenContent(
         }
 
         item {
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             BudgetCard(
                 dailyBudget = dailyBudget,
                 modifier = Modifier.padding(horizontal = 18.dp)
@@ -111,7 +111,7 @@ private fun HomeScreenContent(
         }
 
         item {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             MonthlyExpensesCard(
                 monthlyExpenses = monthlyExpenses,
                 modifier = Modifier.padding(horizontal = 18.dp)
@@ -119,7 +119,7 @@ private fun HomeScreenContent(
         }
 
         item {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             CategoryBarChart(
                 categoryExpenses = categoryExpenses,
                 modifier = Modifier.padding(horizontal = 18.dp)
@@ -130,11 +130,11 @@ private fun HomeScreenContent(
             item(key = "header_${section.title}") {
                 Text(
                     text = section.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = SpendAntFontFamily,
                     color = Color.Black,
-                    modifier = Modifier.padding(start = 22.dp, top = 16.dp, end = 22.dp, bottom = 10.dp)
+                    modifier = Modifier.padding(start = 18.dp, top = 20.dp, end = 18.dp, bottom = 12.dp)
                 )
             }
 
