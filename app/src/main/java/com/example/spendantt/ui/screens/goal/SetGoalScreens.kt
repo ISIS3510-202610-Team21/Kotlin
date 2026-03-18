@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,19 +51,22 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.launch
 
 private val GoalBackground = Color(0xFFF5C333)
 private val GoalInputBackground = Color(0xFFF7E7AF)
 
 @Composable
 fun SetGoalFlowScreen(
-    onSaveGoal: (name: String, targetAmount: Double, deadline: Long, dailyAmount: Double) -> Unit = { _, _, _, _ -> },
+    onSaveGoal: suspend (name: String, targetAmount: Double, deadline: Long, dailyAmount: Double) -> String? = { _, _, _, _ -> null },
     onExit: () -> Unit = {}
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var currentStep by remember { mutableStateOf(0) }
     var amount by remember { mutableStateOf("") }
     var purpose by remember { mutableStateOf("") }
     var targetDateMillis by remember { mutableStateOf<Long?>(null) }
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     val amountValue = amount.toLongOrNull() ?: 0L
     val formattedAmount = "\$${formatNumber(amountValue)}"
@@ -113,17 +117,22 @@ fun SetGoalFlowScreen(
             SetGoalPlanScreen(
                 planText = planText,
                 dailyAmountText = "Save $${formatNumber(dailyAmount)} per day",
+                errorMessage = saveError,
                 onBackClick = { currentStep = 2 },
                 onAlrightClick = {
                     val deadlineMillis = targetDateMillis
                     if (amountValue > 0L && deadlineMillis != null && purpose.isNotBlank() && daysRemaining > 0) {
-                        onSaveGoal(
-                            purpose.trim(),
-                            amountValue.toDouble(),
-                            normalizeToLocalStartOfDay(deadlineMillis),
-                            dailyAmount.toDouble()
-                        )
-                        onExit()
+                        coroutineScope.launch {
+                            saveError = onSaveGoal(
+                                purpose.trim(),
+                                amountValue.toDouble(),
+                                normalizeToLocalStartOfDay(deadlineMillis),
+                                dailyAmount.toDouble()
+                            )
+                            if (saveError == null) {
+                                onExit()
+                            }
+                        }
                     }
                 }
             )
@@ -292,6 +301,7 @@ private fun SetGoalDatePickerScreen(
 fun SetGoalPlanScreen(
     planText: String,
     dailyAmountText: String,
+    errorMessage: String?,
     onBackClick: () -> Unit,
     onAlrightClick: () -> Unit
 ) {
@@ -318,6 +328,19 @@ fun SetGoalPlanScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
         )
+
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = errorMessage,
+                fontSize = 12.sp,
+                color = Color.Red,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(18.dp))
 

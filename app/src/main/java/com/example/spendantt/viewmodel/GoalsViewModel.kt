@@ -9,11 +9,12 @@ import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.GoalEntity
 import com.example.spendantt.data.preferences.GoalPreferences
 import com.example.spendantt.data.repository.GoalRepository
+import com.example.spendantt.data.repository.IncomeRepository
+import com.example.spendantt.util.DailyFinanceCalculator
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Calendar
-import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
 
 data class GoalListItemUiState(
     val id: Int,
@@ -28,7 +29,9 @@ class GoalsViewModel(
     context: Context,
     private val userId: Int
 ) : ViewModel() {
-    private val repository = GoalRepository(AppDatabase.getInstance(context).goalDao())
+    private val database = AppDatabase.getInstance(context)
+    private val repository = GoalRepository(database.goalDao())
+    private val incomeRepository = IncomeRepository(database.incomeDao())
     private val preferences = GoalPreferences(context)
 
     private val _goals = mutableStateOf<List<GoalListItemUiState>>(emptyList())
@@ -40,15 +43,20 @@ class GoalsViewModel(
     private val _isLoading = mutableStateOf(true)
     val isLoading: State<Boolean> = _isLoading
 
+    private val _goalLimitError = mutableStateOf<String?>(null)
+    val goalLimitError: State<String?> = _goalLimitError
+
     init {
         observeGoals()
     }
 
     fun showCreateGoal() {
+        _goalLimitError.value = null
         _isCreatingGoal.value = true
     }
 
     fun showGoalList() {
+        _goalLimitError.value = null
         _isCreatingGoal.value = false
     }
 
@@ -57,30 +65,70 @@ class GoalsViewModel(
         _goals.value = _goals.value.map { it.copy(isSelected = it.id == goalId) }
     }
 
-    fun saveGoal(name: String, targetAmount: Double, deadline: Long, dailyAmount: Double) {
-        viewModelScope.launch {
-            val createdAt = startOfTodayMillis()
-            val currentAmount = calculateProgressAmount(createdAt, deadline, targetAmount)
-            val result = repository.insertGoal(
-                GoalEntity(
-                    userId = userId,
-                    name = name,
-                    targetAmount = targetAmount,
-                    currentAmount = currentAmount,
-                    deadline = deadline,
-                    createdAt = createdAt,
-                    isCompleted = currentAmount >= targetAmount
-                )
-            )
+    suspend fun saveGoal(name: String, targetAmount: Double, deadline: Long, dailyAmount: Double): String? {
+        val createdAt = startOfTodayMillis()
+        val incomes = incomeRepository.getIncomesByUser(userId).first()
+        val existingGoals = repository.getGoalsByUser(userId).first()
 
-            val newGoalId = result.getOrNull()?.toInt() ?: return@launch
-            if (_goals.value.isEmpty()) {
-                preferences.setSelectedGoalId(userId, newGoalId)
-            } else if (preferences.getSelectedGoalId(userId) == null) {
-                preferences.setSelectedGoalId(userId, newGoalId)
-            }
-            _isCreatingGoal.value = false
+        val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
+        val existingDailyGoals = DailyFinanceCalculator.sumDailyGoals(existingGoals)
+
+        if (totalDailyIncome <= 0.0) {
+            val message = "You need at least one income before creating a goal."
+            _goalLimitError.value = message
+            return message
         }
+
+        if (dailyAmount > totalDailyIncome) {
+            val message = "This goal needs more daily savings than your daily income allows."
+            _goalLimitError.value = message
+            return message
+        }
+
+        if (existingDailyGoals + dailyAmount > totalDailyIncome) {
+            val message = "Your goals together cannot exceed your total daily income."
+            _goalLimitError.value = message
+            return message
+        }
+
+        val currentAmount = DailyFinanceCalculator.calculateGoalProgressAmount(
+            GoalEntity(
+                userId = userId,
+                name = name,
+                targetAmount = targetAmount,
+                deadline = deadline,
+                createdAt = createdAt
+            )
+        )
+        val result = repository.insertGoal(
+            GoalEntity(
+                userId = userId,
+                name = name,
+                targetAmount = targetAmount,
+                currentAmount = currentAmount,
+                deadline = deadline,
+                createdAt = createdAt,
+                isCompleted = currentAmount >= targetAmount
+            )
+        )
+
+        val newGoalId = result.getOrNull()?.toInt()
+        if (newGoalId == null) {
+            val message = result.exceptionOrNull()?.message ?: "Could not save goal."
+            _goalLimitError.value = message
+            return message
+        }
+
+        if (_goals.value.isEmpty() || preferences.getSelectedGoalId(userId) == null) {
+            preferences.setSelectedGoalId(userId, newGoalId)
+        }
+        _goalLimitError.value = null
+        _isCreatingGoal.value = false
+        return null
+    }
+
+    fun clearGoalLimitError() {
+        _goalLimitError.value = null
     }
 
     private fun observeGoals() {
@@ -88,14 +136,10 @@ class GoalsViewModel(
             repository.getGoalsByUser(userId).collectLatest { goals ->
                 val selectedGoalId = ensureSelectedGoal(goals)
                 _goals.value = goals.map { goal ->
-                    val dailyAmount = calculateDailyAmount(goal)
-                    val progressPercent = calculateTimeProgress(goal)
+                    val dailyAmount = DailyFinanceCalculator.calculateDailyGoal(goal)
+                    val progressPercent = DailyFinanceCalculator.calculateGoalProgressPercent(goal)
                     goal.copy(
-                        currentAmount = calculateProgressAmount(
-                            goal.createdAt,
-                            goal.deadline,
-                            goal.targetAmount
-                        )
+                        currentAmount = DailyFinanceCalculator.calculateGoalProgressAmount(goal)
                     ).let {
                         GoalListItemUiState(
                             id = it.id,
@@ -126,39 +170,6 @@ class GoalsViewModel(
         }
         preferences.setSelectedGoalId(userId, selectedId)
         return selectedId
-    }
-
-    private fun calculateDailyAmount(goal: GoalEntity): Double {
-        val totalDays = totalGoalDays(goal.createdAt, goal.deadline)
-        return if (totalDays > 0) goal.targetAmount / totalDays else goal.targetAmount
-    }
-
-    private fun calculateTimeProgress(goal: GoalEntity): Int {
-        val totalDays = totalGoalDays(goal.createdAt, goal.deadline)
-        if (totalDays <= 0) return 100
-        val elapsedDays = elapsedGoalDays(goal.createdAt, goal.deadline)
-        return ((elapsedDays.toDouble() / totalDays.toDouble()) * 100.0).roundToInt().coerceIn(0, 100)
-    }
-
-    private fun calculateProgressAmount(createdAt: Long, deadline: Long, targetAmount: Double): Double {
-        val totalDays = totalGoalDays(createdAt, deadline)
-        if (totalDays <= 0) return targetAmount
-        val elapsedDays = elapsedGoalDays(createdAt, deadline).coerceAtMost(totalDays)
-        return (targetAmount / totalDays) * elapsedDays
-    }
-
-    private fun totalGoalDays(createdAt: Long, deadline: Long): Long {
-        val diffDays = TimeUnit.MILLISECONDS.toDays(deadline - startOfDayMillis(createdAt))
-        return diffDays.coerceAtLeast(1L)
-    }
-
-    private fun elapsedGoalDays(createdAt: Long, deadline: Long): Long {
-        val today = startOfTodayMillis()
-        if (today >= deadline) {
-            return totalGoalDays(createdAt, deadline)
-        }
-        val diffDays = TimeUnit.MILLISECONDS.toDays(today - startOfDayMillis(createdAt))
-        return diffDays.coerceAtLeast(0L)
     }
 
     private fun startOfTodayMillis(): Long = startOfDayMillis(System.currentTimeMillis())
