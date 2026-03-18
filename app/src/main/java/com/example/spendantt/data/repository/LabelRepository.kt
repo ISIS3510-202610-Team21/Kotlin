@@ -28,19 +28,35 @@ class LabelRepository(
 
     /**
      * Inserta las etiquetas por defecto para un usuario nuevo.
-     * Basado en las etiquetas del diseño: Academic Essentials, University Fees, etc.
+     * Basado en las categorías del diseño con sus respectivos labels.
      */
     suspend fun insertDefaultLabels(userId: Int) {
         val defaultLabels = listOf(
-            LabelEntity(name = "Academic Essentials", userId = userId, iconEmoji = "📚"),
-            LabelEntity(name = "University Fees",     userId = userId, iconEmoji = "🎓"),
-            LabelEntity(name = "Learning Materials",  userId = userId, iconEmoji = "📖"),
-            LabelEntity(name = "Commute",             userId = userId, iconEmoji = "🚌"),
-            LabelEntity(name = "Lifestyle & Social",  userId = userId, iconEmoji = "🎉"),
-            LabelEntity(name = "Living Expenses",     userId = userId, iconEmoji = "🏠"),
-            LabelEntity(name = "Strategic & Utility", userId = userId, iconEmoji = "⚡"),
-            LabelEntity(name = "Food",                userId = userId, iconEmoji = "🍔"),
-            LabelEntity(name = "Transport",           userId = userId, iconEmoji = "🚗"),
+            // Academic Essentials
+            LabelEntity(name = "University Fees", category = "Academic Essentials", userId = userId, iconEmoji = "🎓"),
+            LabelEntity(name = "Learning Materials", category = "Academic Essentials", userId = userId, iconEmoji = "📖"),
+            LabelEntity(name = "Commute", category = "Academic Essentials", userId = userId, iconEmoji = "🚌"),
+
+            // Lifestyle & Social
+            LabelEntity(name = "Food", category = "Lifestyle & Social", userId = userId, iconEmoji = "🍔"),
+            LabelEntity(name = "Social/Group Hangouts", category = "Lifestyle & Social", userId = userId, iconEmoji = "👥"),
+            LabelEntity(name = "Food Delivery", category = "Lifestyle & Social", userId = userId, iconEmoji = "🛵"),
+            LabelEntity(name = "Entertainment", category = "Lifestyle & Social", userId = userId, iconEmoji = "🎬"),
+            LabelEntity(name = "Subscriptions", category = "Lifestyle & Social", userId = userId, iconEmoji = "📺"),
+            LabelEntity(name = "Gifts", category = "Lifestyle & Social", userId = userId, iconEmoji = "🎁"),
+
+            // Living Expenses
+            LabelEntity(name = "Rent", category = "Living Expenses", userId = userId, iconEmoji = "🏠"),
+            LabelEntity(name = "Utilities", category = "Living Expenses", userId = userId, iconEmoji = "💡"),
+            LabelEntity(name = "Services", category = "Living Expenses", userId = userId, iconEmoji = "🔧"),
+            LabelEntity(name = "Groceries", category = "Living Expenses", userId = userId, iconEmoji = "🛒"),
+            LabelEntity(name = "Personal Care", category = "Living Expenses", userId = userId, iconEmoji = "💆"),
+            LabelEntity(name = "Transport", category = "Living Expenses", userId = userId, iconEmoji = "🚗"),
+
+            // Strategic & Utility Tags
+            LabelEntity(name = "Social Ledger (Owed)", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "💰"),
+            LabelEntity(name = "Impulse/Emotional", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "💫"),
+            LabelEntity(name = "Emergency", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "🚨"),
         )
         labelDao.insertLabels(defaultLabels)
     }
@@ -50,12 +66,24 @@ class LabelRepository(
         return labelDao.getLabelsByUser(userId)
     }
 
+    fun getLabelsByCategory(userId: Int, category: String): Flow<List<LabelEntity>> {
+        return labelDao.getLabelsByCategory(userId, category)
+    }
+
+    fun getCategories(userId: Int): Flow<List<String>> {
+        return labelDao.getCategories(userId)
+    }
+
     fun searchLabels(userId: Int, query: String): Flow<List<LabelEntity>> {
         return labelDao.searchLabels(userId, query)
     }
 
     suspend fun getLabelById(labelId: Int): LabelEntity? {
         return labelDao.getLabelById(labelId)
+    }
+
+    suspend fun getLabelsByIds(labelIds: List<Int>): List<LabelEntity> {
+        return labelDao.getLabelsByIds(labelIds)
     }
 
     // ── ACTUALIZAR / ELIMINAR ─────────────────────────────────
@@ -71,6 +99,15 @@ class LabelRepository(
     suspend fun deleteLabel(label: LabelEntity): Result<Unit> {
         return try {
             labelDao.deleteLabel(label)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteAllLabelsForUser(userId: Int): Result<Unit> {
+        return try {
+            labelDao.deleteAllLabelsForUser(userId)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

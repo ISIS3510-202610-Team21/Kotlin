@@ -7,11 +7,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseSource
+import com.example.spendantt.data.local.entity.LabelEntity
 import com.example.spendantt.data.ocr.OcrProcessor
 import com.example.spendantt.data.repository.ExpenseRepository
+import com.example.spendantt.data.repository.LabelRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -36,7 +39,12 @@ data class NewExpenseUiState(
     val isProcessingOcr: Boolean = false,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    // Labels
+    val selectedLabelIds: Set<Int> = emptySet(),
+    val selectedLabels: List<LabelEntity> = emptyList(),
+    val allLabels: List<LabelEntity> = emptyList(),
+    val labelsGroupedByCategory: Map<String, List<LabelEntity>> = emptyMap()
 )
 
 class NewExpenseViewModel(
@@ -46,6 +54,7 @@ class NewExpenseViewModel(
 
     private val db = AppDatabase.getInstance(context)
     private val repository = ExpenseRepository(db.expenseDao(), db.labelDao())
+    private val labelRepository = LabelRepository(db.labelDao())
     private val ocrProcessor = OcrProcessor(context)
 
     private val cloudinaryCloudName = "dpvrhtjka"
@@ -63,6 +72,46 @@ class NewExpenseViewModel(
         _uiState.value = _uiState.value.copy(
             date = dateFormat.format(now.time),
             time = timeFormat.format(now.time)
+        )
+        loadLabels()
+    }
+
+    // ── LABELS ─────────────────────────────────────────────────
+    private fun loadLabels() {
+        viewModelScope.launch {
+            labelRepository.getLabelsByUser(userId).collect { labels ->
+                // Si no hay labels, insertar los por defecto
+                if (labels.isEmpty()) {
+                    labelRepository.insertDefaultLabels(userId)
+                } else {
+                    val grouped = labels.groupBy { it.category ?: "Other" }
+                    _uiState.value = _uiState.value.copy(
+                        allLabels = labels,
+                        labelsGroupedByCategory = grouped
+                    )
+                }
+            }
+        }
+    }
+
+    fun toggleLabel(label: LabelEntity) {
+        val currentIds = _uiState.value.selectedLabelIds.toMutableSet()
+        if (currentIds.contains(label.id)) {
+            currentIds.remove(label.id)
+        } else {
+            currentIds.add(label.id)
+        }
+        val selectedLabels = _uiState.value.allLabels.filter { currentIds.contains(it.id) }
+        _uiState.value = _uiState.value.copy(
+            selectedLabelIds = currentIds,
+            selectedLabels = selectedLabels
+        )
+    }
+
+    fun clearSelectedLabels() {
+        _uiState.value = _uiState.value.copy(
+            selectedLabelIds = emptySet(),
+            selectedLabels = emptyList()
         )
     }
 
@@ -209,7 +258,8 @@ class NewExpenseViewModel(
                     source = state.source,
                     receiptImagePath = state.receiptStorageUrl ?: state.receiptImageUri?.toString()
                 )
-                repository.insertExpense(expense)
+                // Guardar expense con labels seleccionados
+                repository.insertExpense(expense, state.selectedLabelIds.toList())
                 _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)

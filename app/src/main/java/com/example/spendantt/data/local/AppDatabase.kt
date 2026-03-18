@@ -22,9 +22,10 @@ import com.example.spendantt.data.local.entity.UserEntity
  * CAMBIOS vs versión anterior:
  * + IncomeEntity  → funcionalidad 6 (Set a Budget)
  * + GoalEntity    → funcionalidad 7 (Set a Goal)
- * + version: 1→2  → siempre incrementar al agregar/modificar entidades
+ * + LabelEntity.category → funcionalidad 8 (Labels por categorías)
+ * + version: 1→2→3→4  → siempre incrementar al agregar/modificar entidades
  *
- * Fase 2: descomentar MIGRATION_2_3 y agregar campos serverId/isSynced
+ * Fase 2: descomentar MIGRATION_4_5 y agregar campos serverId/isSynced
  */
 @Database(
     entities = [
@@ -35,7 +36,7 @@ import com.example.spendantt.data.local.entity.UserEntity
         IncomeEntity::class,
         GoalEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -59,7 +60,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_2_3)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance
@@ -70,6 +71,13 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE users ADD COLUMN firebaseUid TEXT")
+            }
+        }
+
+        // Migración 3→4: agrega category a labels
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE labels ADD COLUMN category TEXT")
             }
         }
     }

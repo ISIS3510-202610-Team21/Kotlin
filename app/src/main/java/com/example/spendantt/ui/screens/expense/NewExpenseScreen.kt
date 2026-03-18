@@ -31,9 +31,15 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.spendantt.R
+import com.example.spendantt.ui.screens.labels.LabelsScreen
 import com.example.spendantt.ui.theme.*
 import com.example.spendantt.viewmodel.NewExpenseViewModel
 import java.io.File
+
+private enum class ExpenseScreenState {
+    FORM,
+    LABELS
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +47,38 @@ fun NewExpenseScreen(
     viewModel: NewExpenseViewModel,
     onClose: () -> Unit,
     onSaved: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    var currentScreen by remember { mutableStateOf(ExpenseScreenState.FORM) }
+
+    when (currentScreen) {
+        ExpenseScreenState.FORM -> {
+            NewExpenseFormContent(
+                viewModel = viewModel,
+                onClose = onClose,
+                onSaved = onSaved,
+                onLabelClick = { currentScreen = ExpenseScreenState.LABELS }
+            )
+        }
+        ExpenseScreenState.LABELS -> {
+            LabelsScreen(
+                labelsGroupedByCategory = uiState.labelsGroupedByCategory,
+                selectedLabelIds = uiState.selectedLabelIds,
+                onLabelToggle = { label -> viewModel.toggleLabel(label) },
+                onDone = { currentScreen = ExpenseScreenState.FORM },
+                onClose = { currentScreen = ExpenseScreenState.FORM }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun NewExpenseFormContent(
+    viewModel: NewExpenseViewModel,
+    onClose: () -> Unit,
+    onSaved: () -> Unit,
+    onLabelClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -127,6 +165,7 @@ fun NewExpenseScreen(
                     text = "New Expense",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
                     color = SpendAntBlack,
                     modifier = Modifier.align(Alignment.Center)
                 )
@@ -189,20 +228,57 @@ fun NewExpenseScreen(
                     )
                 )
 
-                // Label (sin funcionalidad por ahora)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50.dp))
-                        .background(SpendAntGreen)
-                        .clickable { /* TODO: labels */ }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                // Labels Section
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "+ Label",
-                        color = SpendAntBlack,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
-                    )
+                    // Add Label Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50.dp))
+                            .background(SpendAntGreen)
+                            .clickable { onLabelClick() }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "+ Label",
+                            color = SpendAntBlack,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = SpendAntFontFamily,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    // Selected Labels Chips
+                    uiState.selectedLabels.forEach { label ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(SpendAntGreen)
+                                .clickable { viewModel.toggleLabel(label) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = SpendAntBlack,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = label.name,
+                                    color = SpendAntBlack,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = SpendAntFontFamily,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -229,7 +305,7 @@ fun NewExpenseScreen(
                 // Mostrar URI de recibo seleccionado
                 if (uiState.receiptImageUri != null) {
                     Text(
-                        text = "✓ Receipt selected",
+                        text = "Receipt selected",
                         color = SpendAntGreen,
                         fontSize = 13.sp,
                         modifier = Modifier.align(Alignment.CenterHorizontally)
