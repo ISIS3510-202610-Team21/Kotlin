@@ -36,6 +36,7 @@ class OcrProcessor(private val context: Context) {
     suspend fun processReceipt(uri: Uri): OcrResult {
         val image = InputImage.fromFilePath(context, uri)
         val text = recognizeText(image)
+        android.util.Log.d("OCR_TEXT", text)
         return parseReceiptText(text)
     }
 

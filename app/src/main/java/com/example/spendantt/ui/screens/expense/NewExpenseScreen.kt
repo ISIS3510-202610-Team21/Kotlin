@@ -154,13 +154,18 @@ fun NewExpenseScreen(
                 OutlinedTextField(
                     value = uiState.name,
                     onValueChange = { viewModel.onNameChange(it) },
-                    placeholder = { Text("Expense name") },
+                    placeholder = { Text("Expense name", color = SpendAntBlack) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = SpendAntGreen,
-                        unfocusedBorderColor = Color(0xFFE0E0E0)
+                        unfocusedBorderColor = Color(0xFFE0E0E0),
+                        focusedTextColor = SpendAntBlack,
+                        unfocusedTextColor = SpendAntBlack,
+                        focusedPlaceholderColor = SpendAntBlack,
+                        unfocusedPlaceholderColor = SpendAntBlack,
+                        cursorColor = SpendAntBlack
                     )
                 )
 
@@ -168,14 +173,19 @@ fun NewExpenseScreen(
                 OutlinedTextField(
                     value = uiState.amount,
                     onValueChange = { viewModel.onAmountChange(it) },
-                    placeholder = { Text("$ Amount") },
+                    placeholder = { Text("$ Amount", color = SpendAntBlack) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = SpendAntGreen,
-                        unfocusedBorderColor = Color(0xFFE0E0E0)
+                        unfocusedBorderColor = Color(0xFFE0E0E0),
+                        focusedTextColor = SpendAntBlack,
+                        unfocusedTextColor = SpendAntBlack,
+                        focusedPlaceholderColor = SpendAntBlack,
+                        unfocusedPlaceholderColor = SpendAntBlack,
+                        cursorColor = SpendAntBlack
                     )
                 )
 

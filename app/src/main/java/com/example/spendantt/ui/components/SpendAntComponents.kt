@@ -112,6 +112,11 @@ fun SpendAntTextField(
                 unfocusedContainerColor = SpendAntGreenLight,
                 focusedBorderColor = SpendAntGreen,
                 unfocusedBorderColor = Color.Transparent,
+                focusedTextColor = SpendAntBlack,
+                unfocusedTextColor = SpendAntBlack,
+                focusedPlaceholderColor = SpendAntBlack,
+                unfocusedPlaceholderColor = SpendAntBlack,
+                cursorColor = SpendAntBlack,
                 errorBorderColor = SpendAntError,
                 errorContainerColor = Color(0xFFFFEBEE)
             ),
