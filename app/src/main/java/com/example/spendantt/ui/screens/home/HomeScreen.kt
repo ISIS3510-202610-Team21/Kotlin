@@ -3,7 +3,6 @@ package com.example.spendantt.ui.screens.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,6 +27,11 @@ import com.example.spendantt.ui.screens.home.components.MonthlyExpensesCard
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreen
 import com.example.spendantt.viewmodel.HomeViewModel
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.LinkedHashMap
+import java.util.Locale
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
@@ -40,8 +44,7 @@ fun HomeScreen(viewModel: HomeViewModel) {
         dailyBudget = viewModel.dailyBudget.value,
         monthlyExpenses = viewModel.monthlyExpenses.value,
         categoryExpenses = viewModel.categoryExpenses.value,
-        todayExpenses = viewModel.todayExpenses.value,
-        yesterdayExpenses = viewModel.yesterdayExpenses.value
+        allExpenses = viewModel.allExpenses.value
     )
 }
 
@@ -51,9 +54,10 @@ private fun HomeScreenContent(
     dailyBudget: Double,
     monthlyExpenses: Double,
     categoryExpenses: Map<String, Double>,
-    todayExpenses: List<ExpenseWithLabels>,
-    yesterdayExpenses: List<ExpenseWithLabels>
+    allExpenses: List<ExpenseWithLabels>
 ) {
+    val expenseSections = rememberExpenseSections(allExpenses)
+
     if (isLoading) {
         Box(
             modifier = Modifier
@@ -122,10 +126,10 @@ private fun HomeScreenContent(
             )
         }
 
-        if (todayExpenses.isNotEmpty()) {
-            item {
+        expenseSections.forEach { section ->
+            item(key = "header_${section.title}") {
                 Text(
-                    text = "Today Expenses",
+                    text = section.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = SpendAntFontFamily,
@@ -134,30 +138,12 @@ private fun HomeScreenContent(
                 )
             }
 
-            items(todayExpenses) { expense ->
+            items(
+                count = section.expenses.size,
+                key = { index -> section.expenses[index].expense.id }
+            ) { index ->
                 ExpenseListItem(
-                    expense = expense,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
-                )
-            }
-        }
-
-        if (yesterdayExpenses.isNotEmpty()) {
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Yesterday Expenses",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = SpendAntFontFamily,
-                    color = Color.Black,
-                    modifier = Modifier.padding(start = 22.dp, top = 4.dp, end = 22.dp, bottom = 10.dp)
-                )
-            }
-
-            items(yesterdayExpenses) { expense ->
-                ExpenseListItem(
-                    expense = expense,
+                    expense = section.expenses[index],
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
                 )
             }
@@ -173,7 +159,7 @@ private fun HomeScreenContent(
 @Composable
 fun HomeScreenPreview() {
     val now = 1_710_720_000_000L
-    val todayExpenses = listOf(
+    val allExpenses = listOf(
         ExpenseWithLabels(
             expense = ExpenseEntity(
                 id = 1,
@@ -209,9 +195,7 @@ fun HomeScreenPreview() {
                     userId = 1
                 )
             )
-        )
-    )
-    val yesterdayExpenses = listOf(
+        ),
         ExpenseWithLabels(
             expense = ExpenseEntity(
                 id = 3,
@@ -242,7 +226,61 @@ fun HomeScreenPreview() {
             "Services" to 60000.0,
             "Other" to 40000.0
         ),
-        todayExpenses = todayExpenses,
-        yesterdayExpenses = yesterdayExpenses
+        allExpenses = allExpenses
     )
 }
+
+private data class ExpenseSection(
+    val title: String,
+    val expenses: List<ExpenseWithLabels>
+)
+
+@Composable
+private fun rememberExpenseSections(allExpenses: List<ExpenseWithLabels>): List<ExpenseSection> {
+    val todayStart = rememberDayStart(System.currentTimeMillis())
+    val yesterdayStart = todayStart - ONE_DAY_MILLIS
+    val oneWeekAgoStart = todayStart - (ONE_DAY_MILLIS * 7)
+    val groupedByDay = LinkedHashMap<Long, MutableList<ExpenseWithLabels>>()
+
+    allExpenses.forEach { expense ->
+        val dayStart = startOfDay(expense.expense.date)
+        groupedByDay.getOrPut(dayStart) { mutableListOf() }.add(expense)
+    }
+
+    return groupedByDay.entries.map { (dayStart, expenses) ->
+        val title = when {
+            dayStart == todayStart -> "Today"
+            dayStart == yesterdayStart -> "Yesterday"
+            dayStart >= oneWeekAgoStart -> formatWeekday(dayStart)
+            else -> formatFullDate(dayStart)
+        }
+
+        ExpenseSection(
+            title = title,
+            expenses = expenses.sortedByDescending { it.expense.date }
+        )
+    }
+}
+
+@Composable
+private fun rememberDayStart(timeMillis: Long): Long = startOfDay(timeMillis)
+
+private fun startOfDay(timeMillis: Long): Long {
+    return Calendar.getInstance().apply {
+        timeInMillis = timeMillis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+}
+
+private fun formatWeekday(timeMillis: Long): String {
+    return SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timeMillis))
+}
+
+private fun formatFullDate(timeMillis: Long): String {
+    return SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(timeMillis))
+}
+
+private const val ONE_DAY_MILLIS = 86_400_000L
