@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.ui.theme.*
@@ -81,7 +83,8 @@ fun SpendAntTextField(
     modifier: Modifier = Modifier,
     errorMessage: String? = null,
     leadingText: String? = null,         // Para mostrar "$" antes del monto
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
 ) {
     Column(modifier = modifier) {
         OutlinedTextField(
@@ -106,6 +109,7 @@ fun SpendAntTextField(
             } else null,
             isError = errorMessage != null,
             singleLine = singleLine,
+            keyboardOptions = keyboardOptions,
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = SpendAntGreenLight,

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.GoalEntity
 import com.example.spendantt.data.preferences.GoalPreferences
+import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.util.DailyFinanceCalculator
@@ -30,6 +31,7 @@ class GoalsViewModel(
     private val userId: Int
 ) : ViewModel() {
     private val database = AppDatabase.getInstance(context)
+    private val expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
     private val repository = GoalRepository(database.goalDao())
     private val incomeRepository = IncomeRepository(database.incomeDao())
     private val preferences = GoalPreferences(context)
@@ -91,24 +93,15 @@ class GoalsViewModel(
             return message
         }
 
-        val currentAmount = DailyFinanceCalculator.calculateGoalProgressAmount(
-            GoalEntity(
-                userId = userId,
-                name = name,
-                targetAmount = targetAmount,
-                deadline = deadline,
-                createdAt = createdAt
-            )
-        )
         val result = repository.insertGoal(
             GoalEntity(
                 userId = userId,
                 name = name,
                 targetAmount = targetAmount,
-                currentAmount = currentAmount,
+                currentAmount = 0.0,
                 deadline = deadline,
                 createdAt = createdAt,
-                isCompleted = currentAmount >= targetAmount
+                isCompleted = false
             )
         )
 
@@ -134,19 +127,26 @@ class GoalsViewModel(
     private fun observeGoals() {
         viewModelScope.launch {
             repository.getGoalsByUser(userId).collectLatest { goals ->
+                val incomes = incomeRepository.getIncomesByUser(userId).first()
+                val expenses = expenseRepository.getExpensesWithLabels(userId).first()
+                val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
                 val selectedGoalId = ensureSelectedGoal(goals)
                 _goals.value = goals.map { goal ->
                     val dailyAmount = DailyFinanceCalculator.calculateDailyGoal(goal)
-                    val progressPercent = DailyFinanceCalculator.calculateGoalProgressPercent(goal)
-                    goal.copy(
-                        currentAmount = DailyFinanceCalculator.calculateGoalProgressAmount(goal)
-                    ).let {
+                    val currentAmount = DailyFinanceCalculator.calculateDynamicGoalAmount(
+                        goal = goal,
+                        allGoals = goals,
+                        expenses = expenses,
+                        totalDailyIncome = totalDailyIncome,
+                        selectedGoalId = selectedGoalId
+                    )
+                    goal.copy(currentAmount = currentAmount).let {
                         GoalListItemUiState(
                             id = it.id,
                             name = it.name,
                             deadline = it.deadline,
                             dailyAmount = dailyAmount,
-                            progressPercent = progressPercent,
+                            progressPercent = DailyFinanceCalculator.calculateGoalProgressPercent(it),
                             isSelected = it.id == selectedGoalId
                         )
                     }

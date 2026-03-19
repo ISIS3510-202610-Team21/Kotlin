@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spendantt.data.repository.AppNotification
 import com.example.spendantt.ui.components.SpendAntHeader
 import com.example.spendantt.ui.theme.SpendAntBlack
 import com.example.spendantt.ui.theme.SpendAntFontFamily
@@ -31,16 +32,9 @@ import com.example.spendantt.ui.theme.SpendAntGreenLight
 import com.example.spendantt.ui.theme.SpendAntTextSecondary
 import com.example.spendantt.ui.theme.SpendAntWhite
 
-data class NotificationUiState(
-    val id: String,
-    val title: String,
-    val body: String,
-    val timestampLabel: String
-)
-
 @Composable
 fun NotificationsScreen(
-    notifications: List<NotificationUiState>,
+    notifications: List<AppNotification>,
     onBackClick: () -> Unit
 ) {
     Column(
@@ -100,7 +94,7 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun NotificationCard(notification: NotificationUiState) {
+private fun NotificationCard(notification: AppNotification) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp)
@@ -126,11 +120,16 @@ private fun NotificationCard(notification: NotificationUiState) {
                 fontFamily = SpendAntFontFamily
             )
             Text(
-                text = notification.timestampLabel,
+                text = formatNotificationTimestamp(notification.createdAt),
                 fontSize = 12.sp,
                 color = SpendAntTextSecondary,
                 fontFamily = SpendAntFontFamily
             )
         }
     }
+}
+
+private fun formatNotificationTimestamp(timestamp: Long): String {
+    return java.text.SimpleDateFormat("MMM d, yyyy h:mm a", java.util.Locale.getDefault())
+        .format(java.util.Date(timestamp))
 }
