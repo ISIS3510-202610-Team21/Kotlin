@@ -39,7 +39,7 @@ class LabelRepository(
 
             // Lifestyle & Social
             LabelEntity(name = "Food", category = "Lifestyle & Social", userId = userId, iconEmoji = "🍔"),
-            LabelEntity(name = "Social/Group Hangouts", category = "Lifestyle & Social", userId = userId, iconEmoji = "👥"),
+            LabelEntity(name = "Group Hangouts", category = "Lifestyle & Social", userId = userId, iconEmoji = "👥"),
             LabelEntity(name = "Food Delivery", category = "Lifestyle & Social", userId = userId, iconEmoji = "🛵"),
             LabelEntity(name = "Entertainment", category = "Lifestyle & Social", userId = userId, iconEmoji = "🎬"),
             LabelEntity(name = "Subscriptions", category = "Lifestyle & Social", userId = userId, iconEmoji = "📺"),
@@ -54,8 +54,8 @@ class LabelRepository(
             LabelEntity(name = "Transport", category = "Living Expenses", userId = userId, iconEmoji = "🚗"),
 
             // Strategic & Utility Tags
-            LabelEntity(name = "Social Ledger (Owed)", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "💰"),
-            LabelEntity(name = "Impulse/Emotional", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "💫"),
+            LabelEntity(name = "Owed", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "💰"),
+            LabelEntity(name = "Impulse", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "💫"),
             LabelEntity(name = "Emergency", category = "Strategic & Utility Tags", userId = userId, iconEmoji = "🚨"),
         )
         labelDao.insertLabels(defaultLabels)

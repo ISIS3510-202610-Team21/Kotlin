@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.SpendAntt" parent="Theme.AppCompat.Light.NoActionBar" />
+    <style name="Theme.SpendAntt" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Splash screen background -->
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:statusBarColor">@color/spendant_greenv2</item>
+        <item name="android:navigationBarColor">@color/spendant_greenv2</item>
+    </style>
 </resources>

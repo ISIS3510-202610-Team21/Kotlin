@@ -54,7 +54,7 @@ fun ProfileScreen(
         ) {
             Text(
                 text = "Profile",
-                color = SpendAntTextOnGreen,
+                color = SpendAntBlack,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.Center)
@@ -66,7 +66,7 @@ fun ProfileScreen(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Editar perfil",
-                    tint = SpendAntTextOnGreen
+                    tint = SpendAntBlack
                 )
             }
         }
@@ -125,31 +125,6 @@ fun ProfileScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // ── SET BANK ACCOUNT (negro) ──────────────────────
-        Button(
-            onClick = { /* Fase 2: conectar banco */ },
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SpendAntBlack,
-                contentColor = SpendAntWhite
-            ),
-            modifier = Modifier.padding(horizontal = 32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.AccountBalance,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = SpendAntWhite
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Set Bank Account",
-                fontSize = 14.sp,
-                color = SpendAntWhite
-            )
-        }
 
         Spacer(modifier = Modifier.weight(1f))
 

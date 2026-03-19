@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
 import com.example.spendantt.ui.theme.SpendAntGreen
+import com.example.spendantt.ui.theme.SpendAntGreenLight
 import com.example.spendantt.viewmodel.GoalListItemUiState
 import com.example.spendantt.viewmodel.GoalsViewModel
 import java.text.SimpleDateFormat

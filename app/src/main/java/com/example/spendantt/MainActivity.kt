@@ -89,6 +89,9 @@ class MainActivity : AppCompatActivity() {
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Welcome.route) { inclusive = true }
                         }
+                    },
+                    onLogout = {
+                        currentUserId.value = null
                     }
                 )
             }
