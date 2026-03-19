@@ -266,7 +266,8 @@ private fun RecurrenceSelector(
             }
             DropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = { expanded = false },
+                containerColor = SpendAntWhite
             ) {
                 unitOptions.forEach { (recUnit, label) ->
                     DropdownMenuItem(
