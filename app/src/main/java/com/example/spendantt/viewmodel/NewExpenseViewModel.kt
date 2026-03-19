@@ -258,12 +258,21 @@ class NewExpenseViewModel(
                     source = state.source,
                     receiptImagePath = state.receiptStorageUrl ?: state.receiptImageUri?.toString()
                 )
-                // Guardar expense con labels seleccionados
-                repository.insertExpense(expense, state.selectedLabelIds.toList())
-                _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
+                repository.insertExpense(expense, state.selectedLabelIds.toList()).fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
+                    },
+                    onFailure = { e ->
+                        _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
+                    }
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
+    }
+
+    fun consumeSaved() {
+        _uiState.value = _uiState.value.copy(isSaved = false)
     }
 }

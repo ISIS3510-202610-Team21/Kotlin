@@ -91,7 +91,10 @@ private fun NewExpenseFormContent(
 
     // ── Navegar a Home al guardar ──────────────────────────────
     LaunchedEffect(uiState.isSaved) {
-        if (uiState.isSaved) onSaved()
+        if (uiState.isSaved) {
+            viewModel.consumeSaved()
+            onSaved()
+        }
     }
 
     // ── LAUNCHERS ─────────────────────────────────────────────

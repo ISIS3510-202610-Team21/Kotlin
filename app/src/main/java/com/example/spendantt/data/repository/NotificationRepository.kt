@@ -141,6 +141,7 @@ class NotificationRepository(context: Context) {
         saveNotifications(userId, filtered)
         NotificationManagerCompat.from(appContext).cancel(notificationId.hashCode())
         removeSentToSystem(userId, listOf(notificationId))
+        removeSeenNotifications(userId, listOf(notificationId))
         Log.d(TAG, "removeDailyNotification userId=$userId id=$notificationId remaining=${filtered.size}")
     }
 
@@ -152,6 +153,7 @@ class NotificationRepository(context: Context) {
         saveNotifications(userId, filtered)
         NotificationManagerCompat.from(appContext).cancel(notificationId.hashCode())
         removeSentToSystem(userId, listOf(notificationId))
+        removeSeenNotifications(userId, listOf(notificationId))
         Log.d(TAG, "removeNotification userId=$userId id=$notificationId remaining=${filtered.size}")
     }
 
@@ -186,6 +188,7 @@ class NotificationRepository(context: Context) {
         removedIds.forEach { id -> NotificationManagerCompat.from(appContext).cancel(id.hashCode()) }
         saveNotifications(userId, filtered)
         removeSentToSystem(userId, removedIds)
+        removeSeenNotifications(userId, removedIds)
         Log.d(TAG, "pruneFutureDailyNotifications userId=$userId removed=${removedIds.joinToString()}")
     }
 
@@ -285,6 +288,13 @@ class NotificationRepository(context: Context) {
 
     private fun saveSeenNotificationIds(userId: Int, ids: Set<String>) {
         prefs.edit().putStringSet(seenNotificationsKey(userId), ids).commit()
+    }
+
+    private fun removeSeenNotifications(userId: Int, notificationIds: List<String>) {
+        if (notificationIds.isEmpty()) return
+        val updated = getSeenNotificationIds(userId).toMutableSet()
+        updated.removeAll(notificationIds.toSet())
+        saveSeenNotificationIds(userId, updated)
     }
 
     companion object {

@@ -3,22 +3,22 @@ package com.example.spendantt.data.repository
 import com.example.spendantt.data.local.dao.GoalDao
 import com.example.spendantt.data.local.entity.GoalEntity
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class GoalRepository(
     private val goalDao: GoalDao,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
+    private val syncScope = CoroutineScope(Dispatchers.IO)
 
     suspend fun insertGoal(goal: GoalEntity): Result<Long> {
         return try {
-            // 1. Guardar en Room
             val id = goalDao.insertGoal(goal)
-
-            // 2. Sincronizar con Firestore
-            syncGoalToFirestore(goal.copy(id = id.toInt()))
-
+            syncGoalToFirestoreAsync(goal.copy(id = id.toInt()))
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -46,7 +46,7 @@ class GoalRepository(
                 goalDao.markAsCompleted(goalId)
             }
 
-            syncGoalToFirestore(goal.copy(currentAmount = newAmount))
+            syncGoalToFirestoreAsync(goal.copy(currentAmount = newAmount))
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -56,7 +56,7 @@ class GoalRepository(
     suspend fun updateGoal(goal: GoalEntity): Result<Unit> {
         return try {
             goalDao.updateGoal(goal)
-            syncGoalToFirestore(goal)
+            syncGoalToFirestoreAsync(goal)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -76,25 +76,26 @@ class GoalRepository(
         }
     }
 
-    // ── FIRESTORE SYNC ────────────────────────────────────────
-    private suspend fun syncGoalToFirestore(goal: GoalEntity) {
-        try {
-            val data = mapOf(
-                "id" to goal.id,
-                "userId" to goal.userId,
-                "name" to goal.name,
-                "targetAmount" to goal.targetAmount,
-                "currentAmount" to goal.currentAmount,
-                "deadline" to goal.deadline,
-                "isCompleted" to goal.isCompleted,
-                "createdAt" to goal.createdAt
-            )
-            firestore.collection("goals")
-                .document("${goal.userId}_${goal.id}")
-                .set(data)
-                .await()
-        } catch (e: Exception) {
-            // Fallo silencioso — Room ya tiene los datos
+    private fun syncGoalToFirestoreAsync(goal: GoalEntity) {
+        syncScope.launch {
+            try {
+                val data = mapOf(
+                    "id" to goal.id,
+                    "userId" to goal.userId,
+                    "name" to goal.name,
+                    "targetAmount" to goal.targetAmount,
+                    "currentAmount" to goal.currentAmount,
+                    "deadline" to goal.deadline,
+                    "isCompleted" to goal.isCompleted,
+                    "createdAt" to goal.createdAt
+                )
+                firestore.collection("goals")
+                    .document("${goal.userId}_${goal.id}")
+                    .set(data)
+                    .await()
+            } catch (_: Exception) {
+                // Room already has the source of truth.
+            }
         }
     }
 }

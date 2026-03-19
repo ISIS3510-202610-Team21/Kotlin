@@ -17,9 +17,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +70,7 @@ fun GoalsRoute(
         isLoading = viewModel.isLoading.value,
         onExit = onExit,
         onGoalClick = { viewModel.selectGoal(it) },
+        onDeleteGoalClick = { viewModel.deleteGoal(it) },
         onNewGoalClick = { viewModel.showCreateGoal() }
     )
 }
@@ -71,8 +81,11 @@ fun GoalsScreen(
     isLoading: Boolean,
     onExit: () -> Unit,
     onGoalClick: (Int) -> Unit,
+    onDeleteGoalClick: (Int) -> Unit,
     onNewGoalClick: () -> Unit
 ) {
+    var goalPendingDeletion by remember { mutableStateOf<GoalListItemUiState?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -124,7 +137,11 @@ fun GoalsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(goals, key = { it.id }) { goal ->
-                GoalListCard(goal = goal, onClick = { onGoalClick(goal.id) })
+                GoalListCard(
+                    goal = goal,
+                    onClick = { onGoalClick(goal.id) },
+                    onDeleteClick = { goalPendingDeletion = goal }
+                )
             }
         }
 
@@ -139,6 +156,40 @@ fun GoalsScreen(
                 onClick = onNewGoalClick
             )
         }
+    }
+
+    if (goalPendingDeletion != null) {
+        AlertDialog(
+            onDismissRequest = { goalPendingDeletion = null },
+            title = {
+                Text(
+                    text = "Delete goal?",
+                    color = Color.Black
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete \"${goalPendingDeletion?.name}\"?",
+                    color = Color.Black
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        goalPendingDeletion?.let { onDeleteGoalClick(it.id) }
+                        goalPendingDeletion = null
+                    }
+                ) {
+                    Text(text = "Delete", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { goalPendingDeletion = null }) {
+                    Text(text = "Cancel", color = Color.Black)
+                }
+            },
+            containerColor = Color.White
+        )
     }
 }
 
@@ -183,7 +234,8 @@ private fun EmptyGoalsState(
 @Composable
 private fun GoalListCard(
     goal: GoalListItemUiState,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val progress = goal.progressPercent / 100f
     val isCompleted = goal.isCompleted
@@ -247,12 +299,25 @@ private fun GoalListCard(
                 )
             }
 
-            Text(
-                text = if (isCompleted) "Done" else "${goal.progressPercent}%",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.Black
-            )
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = if (isCompleted) "Done" else "${goal.progressPercent}%",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black
+                )
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete goal",
+                    tint = Color.Red,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable(onClick = onDeleteClick)
+                )
+            }
         }
     }
 }

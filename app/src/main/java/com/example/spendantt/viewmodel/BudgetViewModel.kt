@@ -133,31 +133,35 @@ class BudgetViewModel(
         _formState.value = _formState.value.copy(isSubmitting = true)
 
         viewModelScope.launch {
-            val income = IncomeEntity(
-                userId = userId,
-                name = form.name.trim(),
-                amount = parsedAmount!!,
-                type = form.incomeType,
-                recurrenceInterval = if (form.incomeType == IncomeType.FREQUENTLY)
-                    form.recurrenceInterval.toIntOrNull() ?: 1 else null,
-                recurrenceUnit = if (form.incomeType == IncomeType.FREQUENTLY)
-                    form.recurrenceUnit else null,
-                startDate = form.startDate
-            )
+            try {
+                val income = IncomeEntity(
+                    userId = userId,
+                    name = form.name.trim(),
+                    amount = parsedAmount!!,
+                    type = form.incomeType,
+                    recurrenceInterval = if (form.incomeType == IncomeType.FREQUENTLY)
+                        form.recurrenceInterval.toIntOrNull() ?: 1 else null,
+                    recurrenceUnit = if (form.incomeType == IncomeType.FREQUENTLY)
+                        form.recurrenceUnit else null,
+                    startDate = form.startDate
+                )
 
-            val result = incomeRepository.insertIncome(income)
-            _formState.value = _formState.value.copy(isSubmitting = false)
-
-            result.fold(
-                onSuccess = {
-                    resetForm()
-                    _uiState.value = _uiState.value.copy(successMessage = "Ingreso guardado")
-                    onSuccess()
-                },
-                onFailure = { e ->
-                    _uiState.value = _uiState.value.copy(errorMessage = e.message)
-                }
-            )
+                val result = incomeRepository.insertIncome(income)
+                result.fold(
+                    onSuccess = {
+                        resetForm()
+                        _uiState.value = _uiState.value.copy(successMessage = "Ingreso guardado")
+                        onSuccess()
+                    },
+                    onFailure = { e ->
+                        _uiState.value = _uiState.value.copy(errorMessage = e.message)
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            } finally {
+                _formState.value = _formState.value.copy(isSubmitting = false)
+            }
         }
     }
 

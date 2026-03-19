@@ -317,7 +317,22 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                 selectedGoalId = selectedGoalId,
                 now = now
             )
+            val halfwayNotificationId = "goal_half_${goal.id}"
             val notificationId = "goal_completed_${goal.id}"
+            if (currentAmount + 0.0001 >= goal.targetAmount / 2.0) {
+                notificationRepository.upsertNotification(
+                    userId = userId,
+                    notificationId = halfwayNotificationId,
+                    type = "goal_half",
+                    title = "Halfway there",
+                    body = "Congrats! You're halfway to your goal."
+                )
+            } else {
+                notificationRepository.removeNotification(
+                    userId = userId,
+                    notificationId = halfwayNotificationId
+                )
+            }
             if (currentAmount + 0.0001 >= goal.targetAmount) {
                 notificationRepository.upsertNotification(
                     userId = userId,
