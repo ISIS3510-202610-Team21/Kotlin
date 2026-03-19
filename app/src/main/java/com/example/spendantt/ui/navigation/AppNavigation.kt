@@ -307,7 +307,10 @@ fun AppNavigation(
                 }
                 NotificationsScreen(
                     notifications = notificationsViewModel.notifications.value,
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = { navController.popBackStack() },
+                    onSimulateGooglePayClick = {
+                        notificationsViewModel.simulateGooglePayExpense()
+                    }
                 )
             }
         }

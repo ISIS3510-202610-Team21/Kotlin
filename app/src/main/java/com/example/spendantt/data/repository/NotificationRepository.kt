@@ -192,6 +192,24 @@ class NotificationRepository(context: Context) {
         Log.d(TAG, "pruneFutureDailyNotifications userId=$userId removed=${removedIds.joinToString()}")
     }
 
+    fun postSimulationNotification(
+        notificationId: String,
+        title: String,
+        body: String
+    ) {
+        postSystemNotification(
+            AppNotification(
+                id = notificationId,
+                userId = -1,
+                type = "simulation",
+                title = title,
+                body = body,
+                createdAt = System.currentTimeMillis(),
+                isRead = false
+            )
+        )
+    }
+
     private fun saveNotifications(userId: Int, notifications: List<AppNotification>) {
         val array = JSONArray()
         notifications.forEach { notification ->

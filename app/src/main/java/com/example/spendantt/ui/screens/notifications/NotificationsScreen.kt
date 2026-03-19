@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +39,8 @@ import com.example.spendantt.ui.theme.SpendAntWhite
 @Composable
 fun NotificationsScreen(
     notifications: List<AppNotification>,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onSimulateGooglePayClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -46,6 +51,22 @@ fun NotificationsScreen(
             title = "Notifications",
             onClose = onBackClick
         )
+        Button(
+            onClick = onSimulateGooglePayClick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SpendAntBlack,
+                contentColor = SpendAntWhite
+            ),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp)
+        ) {
+            Text(
+                text = "Simulate Google Pay expense",
+                fontFamily = SpendAntFontFamily
+            )
+        }
 
         if (notifications.isEmpty()) {
             Box(
@@ -76,6 +97,7 @@ fun NotificationsScreen(
                         fontSize = 15.sp,
                         fontFamily = SpendAntFontFamily
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
             return
