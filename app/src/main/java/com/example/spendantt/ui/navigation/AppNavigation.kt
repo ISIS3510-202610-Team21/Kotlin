@@ -3,7 +3,12 @@ package com.example.spendantt.ui.navigation
 import android.content.Context
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -21,6 +26,7 @@ import com.example.spendantt.ui.screens.budget.ProfileScreen
 import com.example.spendantt.ui.screens.expense.NewExpenseScreen
 import com.example.spendantt.ui.screens.goal.GoalsRoute
 import com.example.spendantt.ui.screens.home.HomeScreen
+import com.example.spendantt.ui.screens.notifications.NotificationsScreen
 import com.example.spendantt.viewmodel.BudgetViewModel
 import com.example.spendantt.viewmodel.GoalsViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
@@ -28,23 +34,24 @@ import com.example.spendantt.viewmodel.LoginViewModel
 import com.example.spendantt.viewmodel.NewExpenseViewModel
 import com.example.spendantt.viewmodel.RegisterViewModel
 
-
 sealed class Screen(val route: String) {
-    object Welcome    : Screen("welcome")
-    object Login      : Screen("login")
-    object Register   : Screen("register")
-    object Home       : Screen("home")
-    object Profile    : Screen("profile")
-    object Goals      : Screen("goals")
-    object Budget     : Screen("budget")
+    object Welcome : Screen("welcome")
+    object Login : Screen("login")
+    object Register : Screen("register")
+    object Home : Screen("home")
+    object Profile : Screen("profile")
+    object Goals : Screen("goals")
+    object Budget : Screen("budget")
     object NewExpense : Screen("new_expense")
+    object Notifications : Screen("notifications")
 }
 
 private val routesWithoutNavBar = listOf(
     Screen.Welcome.route,
     Screen.Login.route,
     Screen.Register.route,
-    Screen.NewExpense.route  // ← sin navbar en la pantalla de nuevo gasto
+    Screen.NewExpense.route,
+    Screen.Notifications.route
 )
 
 @Composable
@@ -103,8 +110,6 @@ fun AppNavigation(
             startDestination = Screen.Welcome.route,
             modifier = Modifier.padding(paddingValues)
         ) {
-
-            // ── WELCOME ───────────────────────────────────────
             composable(Screen.Welcome.route) {
                 WelcomeScreen(
                     onLoginClick = {
@@ -121,7 +126,6 @@ fun AppNavigation(
                 )
             }
 
-            // ── LOGIN ─────────────────────────────────────────
             composable(Screen.Login.route) {
                 val loginViewModel = remember { LoginViewModel(context) }
                 LoginScreen(
@@ -131,7 +135,6 @@ fun AppNavigation(
                 )
             }
 
-            // ── REGISTER ──────────────────────────────────────
             composable(Screen.Register.route) {
                 val registerViewModel = remember { RegisterViewModel(context) }
                 RegisterScreen(
@@ -141,16 +144,19 @@ fun AppNavigation(
                 )
             }
 
-            // ── HOME ──────────────────────────────────────────
             composable(Screen.Home.route) {
                 if (currentUserId == null) return@composable
                 val homeViewModel = remember(currentUserId) {
                     HomeViewModel(context, currentUserId)
                 }
-                HomeScreen(viewModel = homeViewModel)
+                HomeScreen(
+                    viewModel = homeViewModel,
+                    onNotificationsClick = {
+                        navController.navigate(Screen.Notifications.route) { launchSingleTop = true }
+                    }
+                )
             }
 
-            // ── NEW EXPENSE ───────────────────────────────────
             composable(Screen.NewExpense.route) {
                 if (currentUserId == null) return@composable
                 val newExpenseViewModel = remember(currentUserId) {
@@ -167,7 +173,6 @@ fun AppNavigation(
                 )
             }
 
-            // ── PROFILE ───────────────────────────────────────
             composable(Screen.Profile.route) {
                 if (currentUserId == null) return@composable
                 val budgetViewModel = remember(currentUserId) {
@@ -182,11 +187,10 @@ fun AppNavigation(
                     handle = handle,
                     onIncomeClick = { navController.navigate(Screen.Budget.route) },
                     onGoalsClick = { navController.navigate(Screen.Goals.route) },
-                    onEditClick = { }
+                    onEditClick = {}
                 )
             }
 
-            // ── BUDGET ────────────────────────────────────────
             composable(Screen.Budget.route) {
                 if (currentUserId == null) return@composable
                 val budgetViewModel = remember(currentUserId) {
@@ -204,7 +208,6 @@ fun AppNavigation(
                 )
             }
 
-            // ── GOALS ─────────────────────────────────────────
             composable(Screen.Goals.route) {
                 if (currentUserId == null) return@composable
                 val goalsViewModel = remember(currentUserId) {
@@ -218,6 +221,13 @@ fun AppNavigation(
                             navController.navigate(Screen.Home.route) { launchSingleTop = true }
                         }
                     }
+                )
+            }
+
+            composable(Screen.Notifications.route) {
+                NotificationsScreen(
+                    notifications = emptyList(),
+                    onBackClick = { navController.popBackStack() }
                 )
             }
         }
