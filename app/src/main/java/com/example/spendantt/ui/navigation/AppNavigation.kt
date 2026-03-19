@@ -25,6 +25,7 @@ import com.example.spendantt.ui.screens.onboarding.OnboardingScreen1
 import com.example.spendantt.ui.screens.onboarding.OnboardingScreen2
 import com.example.spendantt.ui.screens.onboarding.OnboardingScreen3
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
+import com.example.spendantt.ui.screens.budget.EditProfileScreen
 import com.example.spendantt.ui.screens.budget.ProfileScreen
 import com.example.spendantt.ui.screens.expense.NewExpenseScreen
 import com.example.spendantt.ui.screens.goal.GoalsRoute
@@ -46,6 +47,7 @@ sealed class Screen(val route: String) {
     object Onboarding3 : Screen("onboarding3")
     object Home : Screen("home")
     object Profile : Screen("profile")
+    object EditProfile : Screen("edit_profile")
     object Goals : Screen("goals")
     object Budget : Screen("budget")
     object NewExpense : Screen("new_expense")
@@ -60,6 +62,7 @@ private val routesWithoutNavBar = listOf(
     Screen.Onboarding2.route,
     Screen.Onboarding3.route,
     Screen.NewExpense.route,
+    Screen.EditProfile.route,
     Screen.Notifications.route
 )
 
@@ -243,7 +246,7 @@ fun AppNavigation(
                     handle = handle,
                     onIncomeClick = { navController.navigate(Screen.Budget.route) },
                     onGoalsClick = { navController.navigate(Screen.Goals.route) },
-                    onEditClick = {}
+                    onEditClick = { navController.navigate(Screen.EditProfile.route) }
                 )
             }
 
@@ -276,6 +279,18 @@ fun AppNavigation(
                         if (!popped) {
                             navController.navigate(Screen.Home.route) { launchSingleTop = true }
                         }
+                    }
+                )
+            }
+
+            composable(Screen.EditProfile.route) {
+                if (currentUserId == null) return@composable
+                EditProfileScreen(
+                    currentDisplayName = displayName,
+                    onBackClick = { navController.popBackStack() },
+                    onSaveClick = { newDisplayName ->
+                        // TODO: Guardar el nuevo nombre en la base de datos
+                        navController.popBackStack()
                     }
                 )
             }
