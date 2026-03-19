@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
 import com.example.spendantt.ui.theme.SpendAntGreen
+import com.example.spendantt.ui.theme.SpendAntGreenLight
 import com.example.spendantt.viewmodel.GoalListItemUiState
 import com.example.spendantt.viewmodel.GoalsViewModel
 import java.text.SimpleDateFormat
@@ -185,8 +186,8 @@ private fun GoalListCard(
     onClick: () -> Unit
 ) {
     val progress = goal.progressPercent / 100f
-    val baseColor = if (goal.isSelected) Color(0xFFB8F1C5) else Color(0xFFF6D4CA)
-    val accentColor = if (goal.isSelected) Color(0xFF41C463) else Color(0xFFFF6A2A)
+    val baseColor = if (goal.isSelected) SpendAntGreenLight else Color(0xFFF6D4CA)
+    val accentColor = if (goal.isSelected) SpendAntGreen else Color(0xFFFF6A2A)
 
     Box(
         modifier = Modifier

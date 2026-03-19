@@ -21,6 +21,9 @@ import com.example.spendantt.ui.components.BottomNavBar
 import com.example.spendantt.ui.screens.auth.LoginScreen
 import com.example.spendantt.ui.screens.auth.RegisterScreen
 import com.example.spendantt.ui.screens.auth.WelcomeScreen
+import com.example.spendantt.ui.screens.onboarding.OnboardingScreen1
+import com.example.spendantt.ui.screens.onboarding.OnboardingScreen2
+import com.example.spendantt.ui.screens.onboarding.OnboardingScreen3
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
 import com.example.spendantt.ui.screens.budget.ProfileScreen
 import com.example.spendantt.ui.screens.expense.NewExpenseScreen
@@ -38,6 +41,9 @@ sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
     object Login : Screen("login")
     object Register : Screen("register")
+    object Onboarding1 : Screen("onboarding1")
+    object Onboarding2 : Screen("onboarding2")
+    object Onboarding3 : Screen("onboarding3")
     object Home : Screen("home")
     object Profile : Screen("profile")
     object Goals : Screen("goals")
@@ -50,6 +56,9 @@ private val routesWithoutNavBar = listOf(
     Screen.Welcome.route,
     Screen.Login.route,
     Screen.Register.route,
+    Screen.Onboarding1.route,
+    Screen.Onboarding2.route,
+    Screen.Onboarding3.route,
     Screen.NewExpense.route,
     Screen.Notifications.route
 )
@@ -84,7 +93,10 @@ fun AppNavigation(
 
     Scaffold(
         bottomBar = {
-            if (currentRoute !in routesWithoutNavBar) {
+            val shouldHideNavBar = routesWithoutNavBar.any { route ->
+                currentRoute == route || currentRoute?.startsWith("$route/") == true
+            }
+            if (!shouldHideNavBar) {
                 BottomNavBar(
                     currentRoute = currentRoute,
                     onProfileClick = {
@@ -140,8 +152,45 @@ fun AppNavigation(
                 val registerViewModel = remember { RegisterViewModel(context) }
                 RegisterScreen(
                     viewModel = registerViewModel,
-                    onRegisterSuccess = { userId -> onLoginSuccess(userId) },
+                    onRegisterSuccess = { userId ->
+                        navController.navigate("${Screen.Onboarding1.route}/$userId") {
+                            popUpTo(Screen.Register.route) { inclusive = true }
+                        }
+                    },
                     onBackToLogin = { navController.popBackStack() }
+                )
+            }
+
+            composable("${Screen.Onboarding1.route}/{userId}") { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+                OnboardingScreen1(
+                    onContinue = {
+                        navController.navigate("${Screen.Onboarding2.route}/$userId")
+                    }
+                )
+            }
+
+            composable("${Screen.Onboarding2.route}/{userId}") { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+                OnboardingScreen2(
+                    onSyncCalendar = {
+                        navController.navigate("${Screen.Onboarding3.route}/$userId")
+                    },
+                    onSkip = {
+                        navController.navigate("${Screen.Onboarding3.route}/$userId")
+                    }
+                )
+            }
+
+            composable("${Screen.Onboarding3.route}/{userId}") { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+                OnboardingScreen3(
+                    onAllowNotifications = {
+                        onLoginSuccess(userId)
+                    },
+                    onSkip = {
+                        onLoginSuccess(userId)
+                    }
                 )
             }
 

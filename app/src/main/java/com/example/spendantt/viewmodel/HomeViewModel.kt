@@ -113,13 +113,6 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                         }
                     }
 
-                    if (categoryMap.isEmpty()) {
-                        categoryMap["Food"] = 250000.0
-                        categoryMap["Transport"] = 150000.0
-                        categoryMap["Services"] = 120000.0
-                        categoryMap["Other"] = 80000.0
-                        _monthlyExpenses.value = 600000.0
-                    }
                     _categoryExpenses.value = categoryMap
 
                     _isLoading.value = false
