@@ -14,6 +14,7 @@ data class LabelEntity(
     val id: Int = 0,
 
     val name: String,               // Ej: "Food", "Transport"
+    val category: String? = null,   // Ej: "Academic Essentials", "Lifestyle & Social"
     val iconEmoji: String? = null,  // Ej: "🍔", "🚗" (opcional)
     val colorHex: String? = null,   // Ej: "#FF5733" (opcional)
 

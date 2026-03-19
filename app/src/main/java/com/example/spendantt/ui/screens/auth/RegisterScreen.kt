@@ -297,17 +297,5 @@ fun RegisterScreen(
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun RegisterScreenPreview() {
-    val context = LocalContext.current
-    val viewModel = RegisterViewModel(context)
-
-    RegisterScreen(
-        viewModel = viewModel,
-        onRegisterSuccess = {},
-        onBackToLogin = {}
-    )
-}
 
 

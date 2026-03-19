@@ -291,6 +291,9 @@ fun LoginScreen(
 }
 
 
+// Preview comentado porque LoginViewModel requiere Firebase
+// Para ver la pantalla, ejecuta la app en un dispositivo/emulador
+/*
 @Preview(showBackground = true)
 @Composable
 fun LoginScreenPreview() {
@@ -306,3 +309,4 @@ fun LoginScreenPreview() {
         onUseManualLogin = {}
     )
 }
+*/
