@@ -17,6 +17,8 @@ import java.text.DecimalFormat
 
 @Composable
 fun BudgetCard(dailyBudget: Double, modifier: Modifier = Modifier) {
+    val safeDailyBudget = dailyBudget.coerceAtLeast(0.0)
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -44,7 +46,7 @@ fun BudgetCard(dailyBudget: Double, modifier: Modifier = Modifier) {
                 color = SpendAntGreen
             )
             Text(
-                text = DecimalFormat("#,##0").format(dailyBudget),
+                text = DecimalFormat("#,##0").format(safeDailyBudget),
                 fontSize = 44.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = SpendAntFontFamily,

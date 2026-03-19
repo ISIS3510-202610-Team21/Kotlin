@@ -186,8 +186,17 @@ private fun GoalListCard(
     onClick: () -> Unit
 ) {
     val progress = goal.progressPercent / 100f
-    val baseColor = if (goal.isSelected) SpendAntGreenLight else Color(0xFFF6D4CA)
-    val accentColor = if (goal.isSelected) SpendAntGreen else Color(0xFFFF6A2A)
+    val isCompleted = goal.progressPercent >= 100
+    val baseColor = when {
+        isCompleted -> Color(0xFFB8F1C5)
+        goal.isSelected -> Color(0xFFB8F1C5)
+        else -> Color(0xFFF6D4CA)
+    }
+    val accentColor = when {
+        isCompleted -> Color(0xFF41C463)
+        goal.isSelected -> Color(0xFF41C463)
+        else -> Color(0xFFFF6A2A)
+    }
 
     Box(
         modifier = Modifier
@@ -239,7 +248,7 @@ private fun GoalListCard(
             }
 
             Text(
-                text = "${goal.progressPercent}%",
+                text = if (isCompleted) "Done" else "${goal.progressPercent}%",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.Black

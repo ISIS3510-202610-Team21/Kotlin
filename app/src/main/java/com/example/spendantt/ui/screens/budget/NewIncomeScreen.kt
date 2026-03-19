@@ -84,7 +84,8 @@ fun NewIncomeScreen(
                 onValueChange = viewModel::onAmountChange,
                 placeholder = "32,000",
                 leadingText = "$",
-                errorMessage = formState.amountError
+                errorMessage = formState.amountError,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
 
             // ── TYPE OF INCOME ────────────────────────────────
