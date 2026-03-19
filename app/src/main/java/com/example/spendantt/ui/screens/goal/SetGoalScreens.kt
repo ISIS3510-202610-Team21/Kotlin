@@ -87,18 +87,18 @@ fun SetGoalFlowScreen(
 
     when {
         currentStep == 0 -> {
-            SetGoalAmountScreen(
-                amount = amount,
-                onAmountChange = { amount = it },
+            SetGoalPurposeScreen(
+                purpose = purpose,
+                onPurposeChange = { purpose = it },
                 onBackClick = onExit,
                 onContinueClick = { currentStep = 1 }
             )
         }
 
         currentStep == 1 -> {
-            SetGoalPurposeScreen(
-                purpose = purpose,
-                onPurposeChange = { purpose = it },
+            SetGoalAmountScreen(
+                amount = amount,
+                onAmountChange = { amount = it },
                 onBackClick = { currentStep = 0 },
                 onContinueClick = { currentStep = 2 }
             )
