@@ -1,6 +1,7 @@
 package com.example.spendantt.ui.screens.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -34,7 +35,10 @@ import java.util.LinkedHashMap
 import java.util.Locale
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel) {
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    onNotificationsClick: () -> Unit = {}
+) {
     LaunchedEffect(Unit) {
         viewModel.refreshDailyBudget()
     }
@@ -44,7 +48,8 @@ fun HomeScreen(viewModel: HomeViewModel) {
         dailyBudget = viewModel.dailyBudget.value,
         monthlyExpenses = viewModel.monthlyExpenses.value,
         categoryExpenses = viewModel.categoryExpenses.value,
-        allExpenses = viewModel.allExpenses.value
+        allExpenses = viewModel.allExpenses.value,
+        onNotificationsClick = onNotificationsClick
     )
 }
 
@@ -54,7 +59,8 @@ private fun HomeScreenContent(
     dailyBudget: Double,
     monthlyExpenses: Double,
     categoryExpenses: Map<String, Double>,
-    allExpenses: List<ExpenseWithLabels>
+    allExpenses: List<ExpenseWithLabels>,
+    onNotificationsClick: () -> Unit = {}
 ) {
     val expenseSections = rememberExpenseSections(allExpenses)
 
@@ -90,6 +96,7 @@ private fun HomeScreenContent(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .size(22.dp)
+                        .clickable(onClick = onNotificationsClick)
                 )
                 Text(
                     text = "Home",
