@@ -23,4 +23,9 @@ class NotificationsViewModel(
     fun refresh() {
         _notifications.value = repository.getNotifications(userId)
     }
+
+    fun markAllAsRead() {
+        repository.markAllAsRead(userId)
+        refresh()
+    }
 }

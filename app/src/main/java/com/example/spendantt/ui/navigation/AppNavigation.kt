@@ -206,6 +206,7 @@ fun AppNavigation(
                 HomeScreen(
                     viewModel = homeViewModel,
                     onNotificationsClick = {
+                        homeViewModel.markNotificationsAsRead()
                         navController.navigate(Screen.Notifications.route) { launchSingleTop = true }
                     },
                     onLogoutClick = {
@@ -300,6 +301,9 @@ fun AppNavigation(
                 if (currentUserId == null) return@composable
                 val notificationsViewModel = remember(currentUserId) {
                     NotificationsViewModel(context, currentUserId)
+                }
+                LaunchedEffect(Unit) {
+                    notificationsViewModel.markAllAsRead()
                 }
                 NotificationsScreen(
                     notifications = notificationsViewModel.notifications.value,

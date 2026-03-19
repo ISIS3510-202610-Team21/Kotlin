@@ -23,7 +23,8 @@ data class GoalListItemUiState(
     val deadline: Long,
     val dailyAmount: Double,
     val progressPercent: Int,
-    val isSelected: Boolean
+    val isSelected: Boolean,
+    val isCompleted: Boolean
 )
 
 class GoalsViewModel(
@@ -127,8 +128,10 @@ class GoalsViewModel(
     private fun observeGoals() {
         viewModelScope.launch {
             repository.getGoalsByUser(userId).collectLatest { goals ->
+                val now = System.currentTimeMillis()
                 val incomes = incomeRepository.getIncomesByUser(userId).first()
                 val expenses = expenseRepository.getExpensesWithLabels(userId).first()
+                    .filter { it.expense.date <= now }
                 val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
                 val selectedGoalId = ensureSelectedGoal(goals)
                 _goals.value = goals.map { goal ->
@@ -138,8 +141,10 @@ class GoalsViewModel(
                         allGoals = goals,
                         expenses = expenses,
                         totalDailyIncome = totalDailyIncome,
-                        selectedGoalId = selectedGoalId
+                        selectedGoalId = selectedGoalId,
+                        now = now
                     )
+                    val isCompleted = currentAmount + 0.0001 >= goal.targetAmount
                     goal.copy(currentAmount = currentAmount).let {
                         GoalListItemUiState(
                             id = it.id,
@@ -147,10 +152,14 @@ class GoalsViewModel(
                             deadline = it.deadline,
                             dailyAmount = dailyAmount,
                             progressPercent = DailyFinanceCalculator.calculateGoalProgressPercent(it),
-                            isSelected = it.id == selectedGoalId
+                            isSelected = it.id == selectedGoalId,
+                            isCompleted = isCompleted
                         )
                     }
-                }
+                }.sortedWith(
+                    compareBy<GoalListItemUiState> { it.isCompleted }
+                        .thenBy { it.deadline }
+                )
                 _isLoading.value = false
             }
         }

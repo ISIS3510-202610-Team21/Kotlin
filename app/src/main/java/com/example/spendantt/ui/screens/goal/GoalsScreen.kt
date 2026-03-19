@@ -186,7 +186,7 @@ private fun GoalListCard(
     onClick: () -> Unit
 ) {
     val progress = goal.progressPercent / 100f
-    val isCompleted = goal.progressPercent >= 100
+    val isCompleted = goal.isCompleted
     val baseColor = when {
         isCompleted -> Color(0xFFB8F1C5)
         goal.isSelected -> Color(0xFFB8F1C5)
