@@ -11,65 +11,53 @@ class GoalRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
 
-    suspend fun insertGoal(goal: GoalEntity): Result<Long> {
+    suspend fun insertGoal(goal: GoalEntity, firebaseUid: String? = null): Result<Long> {
         return try {
-            // 1. Guardar en Room
             val id = goalDao.insertGoal(goal)
-
-            // 2. Sincronizar con Firestore
-            syncGoalToFirestore(goal.copy(id = id.toInt()))
-
+            if (firebaseUid != null) syncGoalToFirestore(goal.copy(id = id.toInt()), firebaseUid)
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    fun getGoalsByUser(userId: Int): Flow<List<GoalEntity>> =
-        goalDao.getGoalsByUser(userId)
+    fun getGoalsByUser(userId: Int): Flow<List<GoalEntity>> = goalDao.getGoalsByUser(userId)
+    fun getActiveGoals(userId: Int): Flow<List<GoalEntity>> = goalDao.getActiveGoals(userId)
+    suspend fun getGoalById(goalId: Int): GoalEntity? = goalDao.getGoalById(goalId)
 
-    fun getActiveGoals(userId: Int): Flow<List<GoalEntity>> =
-        goalDao.getActiveGoals(userId)
-
-    suspend fun getGoalById(goalId: Int): GoalEntity? =
-        goalDao.getGoalById(goalId)
-
-    suspend fun addProgress(goalId: Int, amount: Double): Result<Unit> {
+    suspend fun addProgress(goalId: Int, amount: Double, firebaseUid: String? = null): Result<Unit> {
         return try {
             val goal = goalDao.getGoalById(goalId)
                 ?: return Result.failure(Exception("Meta no encontrada"))
-
             val newAmount = (goal.currentAmount + amount).coerceAtMost(goal.targetAmount)
             goalDao.updateCurrentAmount(goalId, newAmount)
-
-            if (newAmount >= goal.targetAmount) {
-                goalDao.markAsCompleted(goalId)
-            }
-
-            syncGoalToFirestore(goal.copy(currentAmount = newAmount))
+            if (newAmount >= goal.targetAmount) goalDao.markAsCompleted(goalId)
+            if (firebaseUid != null) syncGoalToFirestore(goal.copy(currentAmount = newAmount), firebaseUid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun updateGoal(goal: GoalEntity): Result<Unit> {
+    suspend fun updateGoal(goal: GoalEntity, firebaseUid: String? = null): Result<Unit> {
         return try {
             goalDao.updateGoal(goal)
-            syncGoalToFirestore(goal)
+            if (firebaseUid != null) syncGoalToFirestore(goal, firebaseUid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun deleteGoal(goal: GoalEntity): Result<Unit> {
+    suspend fun deleteGoal(goal: GoalEntity, firebaseUid: String? = null): Result<Unit> {
         return try {
             goalDao.deleteGoal(goal)
-            firestore.collection("goals")
-                .document("${goal.userId}_${goal.id}")
-                .delete()
-                .await()
+            if (firebaseUid != null) {
+                firestore.collection("goals")
+                    .document("${firebaseUid}_${goal.id}")
+                    .delete()
+                    .await()
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -77,10 +65,11 @@ class GoalRepository(
     }
 
     // ── FIRESTORE SYNC ────────────────────────────────────────
-    private suspend fun syncGoalToFirestore(goal: GoalEntity) {
+    private suspend fun syncGoalToFirestore(goal: GoalEntity, firebaseUid: String) {
         try {
             val data = mapOf(
                 "id" to goal.id,
+                "firebaseUid" to firebaseUid,
                 "userId" to goal.userId,
                 "name" to goal.name,
                 "targetAmount" to goal.targetAmount,
@@ -90,11 +79,11 @@ class GoalRepository(
                 "createdAt" to goal.createdAt
             )
             firestore.collection("goals")
-                .document("${goal.userId}_${goal.id}")
+                .document("${firebaseUid}_${goal.id}")
                 .set(data)
                 .await()
         } catch (e: Exception) {
-            // Fallo silencioso — Room ya tiene los datos
+            // Fallo silencioso
         }
     }
 }

@@ -6,6 +6,11 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+val pineconeApiKey = rootProject.file("local.properties")
+    .readLines()
+    .first { it.startsWith("pinecone.api.key=") }
+    .substringAfter("=")
+
 android {
     namespace = "com.example.spendantt"
     compileSdk = 35
@@ -16,6 +21,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "PINECONE_API_KEY", "\"$pineconeApiKey\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -37,6 +43,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     kotlinOptions {

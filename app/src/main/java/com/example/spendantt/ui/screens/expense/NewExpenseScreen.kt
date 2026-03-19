@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -38,7 +39,8 @@ import java.io.File
 
 private enum class ExpenseScreenState {
     FORM,
-    LABELS
+    LABELS,
+    LABEL_PROMPT
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +52,12 @@ fun NewExpenseScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentScreen by remember { mutableStateOf(ExpenseScreenState.FORM) }
+
+    LaunchedEffect(uiState.showLabelPrompt) {
+        if (uiState.showLabelPrompt) {
+            currentScreen = ExpenseScreenState.LABEL_PROMPT
+        }
+    }
 
     when (currentScreen) {
         ExpenseScreenState.FORM -> {
@@ -69,6 +77,78 @@ fun NewExpenseScreen(
                 onClose = { currentScreen = ExpenseScreenState.FORM }
             )
         }
+        ExpenseScreenState.LABEL_PROMPT -> {
+            LabelPromptScreen(
+                viewModel = viewModel,
+                onSaved = onSaved
+            )
+        }
+    }
+}
+
+@Composable
+private fun LabelPromptScreen(
+    viewModel: NewExpenseViewModel,
+    onSaved: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(uiState.isSaved) {
+        if (uiState.isSaved) onSaved()
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(SpendAntWhite)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SpendAntGreen)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = "Labels",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
+                    color = SpendAntBlack,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Hey! We couldn't categorize \"${uiState.name}\".",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
+                    color = SpendAntBlack,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Add a label so we can learn for next time!",
+                    fontSize = 14.sp,
+                    color = Color(0xFF666666),
+                    fontFamily = SpendAntFontFamily,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                LabelsScreen(
+                    labelsGroupedByCategory = uiState.labelsGroupedByCategory,
+                    selectedLabelIds = uiState.selectedLabelIds,
+                    onLabelToggle = { label -> viewModel.toggleLabel(label) },
+                    onDone = { viewModel.savePendingLabels() },
+                    onClose = { viewModel.dismissLabelPrompt() }
+                )
+            }
+        }
     }
 }
 
@@ -83,20 +163,13 @@ private fun NewExpenseFormContent(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // ── URI temporal para foto con cámara ─────────────────────
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
-
-    // ── Mostrar bottom sheet de opciones ──────────────────────
     var showReceiptOptions by remember { mutableStateOf(false) }
 
-    // ── Navegar a Home al guardar ──────────────────────────────
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) onSaved()
     }
 
-    // ── LAUNCHERS ─────────────────────────────────────────────
-
-    // Cámara
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
@@ -105,21 +178,18 @@ private fun NewExpenseFormContent(
         }
     }
 
-    // Galería
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { viewModel.onReceiptSelected(it) }
     }
 
-    // Archivo (PDF o imagen)
     val fileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { viewModel.onReceiptSelected(it) }
     }
 
-    // Permiso cámara
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -135,7 +205,6 @@ private fun NewExpenseFormContent(
         }
     }
 
-    // ── UI ────────────────────────────────────────────────────
     Box(modifier = Modifier.fillMaxSize().background(SpendAntWhite)) {
 
         Column(
@@ -144,7 +213,6 @@ private fun NewExpenseFormContent(
                 .verticalScroll(rememberScrollState())
         ) {
 
-            // ── HEADER ────────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -183,13 +251,11 @@ private fun NewExpenseFormContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ── CAMPOS ────────────────────────────────────────
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
 
-                // Nombre
                 OutlinedTextField(
                     value = uiState.name,
                     onValueChange = { viewModel.onNameChange(it) },
@@ -208,7 +274,6 @@ private fun NewExpenseFormContent(
                     )
                 )
 
-                // Monto
                 OutlinedTextField(
                     value = uiState.amount,
                     onValueChange = { viewModel.onAmountChange(it) },
@@ -228,12 +293,10 @@ private fun NewExpenseFormContent(
                     )
                 )
 
-                // Labels Section
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Add Label Button
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50.dp))
@@ -250,7 +313,6 @@ private fun NewExpenseFormContent(
                         )
                     }
 
-                    // Selected Labels Chips
                     uiState.selectedLabels.forEach { label ->
                         Box(
                             modifier = Modifier
@@ -283,7 +345,6 @@ private fun NewExpenseFormContent(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // ── SCAN RECEIPT ──────────────────────────────
                 Button(
                     onClick = { showReceiptOptions = true },
                     shape = RoundedCornerShape(50.dp),
@@ -302,7 +363,6 @@ private fun NewExpenseFormContent(
                     Text("Scan Receipt", fontWeight = FontWeight.SemiBold)
                 }
 
-                // Mostrar URI de recibo seleccionado
                 if (uiState.receiptImageUri != null) {
                     Text(
                         text = "Receipt selected",
@@ -345,7 +405,6 @@ private fun NewExpenseFormContent(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // ── FOOTER: fecha, hora, ubicación ────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -361,7 +420,6 @@ private fun NewExpenseFormContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Fecha
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -379,7 +437,6 @@ private fun NewExpenseFormContent(
                         )
                     }
 
-                    // Hora
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -397,7 +454,6 @@ private fun NewExpenseFormContent(
                         )
                     }
 
-                    // Ubicación
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -419,7 +475,6 @@ private fun NewExpenseFormContent(
                 }
             }
 
-            // Error
             if (uiState.error != null) {
                 Text(
                     text = uiState.error!!,
@@ -430,7 +485,6 @@ private fun NewExpenseFormContent(
             }
         }
 
-        // Loading overlay
         if (uiState.isSaving) {
             Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)),
@@ -441,7 +495,6 @@ private fun NewExpenseFormContent(
         }
     }
 
-    // ── BOTTOM SHEET: opciones de recibo ──────────────────────
     if (showReceiptOptions) {
         ModalBottomSheet(
             onDismissRequest = { showReceiptOptions = false },
@@ -467,8 +520,6 @@ private fun NewExpenseFormContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-
-                    // ── CÁMARA ────────────────────────────────
                     ReceiptOptionButton(
                         iconRes = R.drawable.ic_camera,
                         label = "Camera",
@@ -493,7 +544,6 @@ private fun NewExpenseFormContent(
                         }
                     )
 
-                    // ── GALERÍA ───────────────────────────────
                     ReceiptOptionButton(
                         iconRes = R.drawable.ic_gallery,
                         label = "Gallery",
@@ -503,7 +553,6 @@ private fun NewExpenseFormContent(
                         }
                     )
 
-                    // ── ARCHIVO ───────────────────────────────
                     ReceiptOptionButton(
                         iconRes = R.drawable.ic_file,
                         label = "File",

@@ -86,12 +86,14 @@ fun AppNavigation(
     val userRepository = remember { UserRepository(db.userDao()) }
     var displayName by remember { mutableStateOf("") }
     var handle by remember { mutableStateOf("") }
+    var firebaseUid by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(currentUserId) {
         if (currentUserId != null) {
             val user = userRepository.getUserById(currentUserId)
             displayName = user?.displayName ?: user?.username ?: ""
             handle = user?.handle ?: "@${user?.username ?: ""}"
+            firebaseUid = user?.firebaseUid
         }
     }
 
@@ -168,33 +170,23 @@ fun AppNavigation(
             composable("${Screen.Onboarding1.route}/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
                 OnboardingScreen1(
-                    onContinue = {
-                        navController.navigate("${Screen.Onboarding2.route}/$userId")
-                    }
+                    onContinue = { navController.navigate("${Screen.Onboarding2.route}/$userId") }
                 )
             }
 
             composable("${Screen.Onboarding2.route}/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
                 OnboardingScreen2(
-                    onSyncCalendar = {
-                        navController.navigate("${Screen.Onboarding3.route}/$userId")
-                    },
-                    onSkip = {
-                        navController.navigate("${Screen.Onboarding3.route}/$userId")
-                    }
+                    onSyncCalendar = { navController.navigate("${Screen.Onboarding3.route}/$userId") },
+                    onSkip = { navController.navigate("${Screen.Onboarding3.route}/$userId") }
                 )
             }
 
             composable("${Screen.Onboarding3.route}/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
                 OnboardingScreen3(
-                    onAllowNotifications = {
-                        onLoginSuccess(userId)
-                    },
-                    onSkip = {
-                        onLoginSuccess(userId)
-                    }
+                    onAllowNotifications = { onLoginSuccess(userId) },
+                    onSkip = { onLoginSuccess(userId) }
                 )
             }
 
@@ -238,7 +230,8 @@ fun AppNavigation(
                 val budgetViewModel = remember(currentUserId) {
                     BudgetViewModel(
                         incomeRepository = IncomeRepository(db.incomeDao()),
-                        userId = currentUserId
+                        userId = currentUserId,
+                        firebaseUid = firebaseUid
                     )
                 }
                 ProfileScreen(
@@ -256,7 +249,8 @@ fun AppNavigation(
                 val budgetViewModel = remember(currentUserId) {
                     BudgetViewModel(
                         incomeRepository = IncomeRepository(db.incomeDao()),
-                        userId = currentUserId
+                        userId = currentUserId,
+                        firebaseUid = firebaseUid
                     )
                 }
                 BudgetNavigation(
@@ -271,7 +265,7 @@ fun AppNavigation(
             composable(Screen.Goals.route) {
                 if (currentUserId == null) return@composable
                 val goalsViewModel = remember(currentUserId) {
-                    GoalsViewModel(context, currentUserId)
+                    GoalsViewModel(context, currentUserId, firebaseUid)
                 }
                 GoalsRoute(
                     viewModel = goalsViewModel,
@@ -290,7 +284,6 @@ fun AppNavigation(
                     currentDisplayName = displayName,
                     onBackClick = { navController.popBackStack() },
                     onSaveClick = { newDisplayName ->
-                        // TODO: Guardar el nuevo nombre en la base de datos
                         navController.popBackStack()
                     }
                 )
