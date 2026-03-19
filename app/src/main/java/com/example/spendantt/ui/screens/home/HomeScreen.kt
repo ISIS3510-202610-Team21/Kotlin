@@ -4,30 +4,40 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
 import com.example.spendantt.data.local.entity.LabelEntity
-import com.example.spendantt.ui.screens.home.components.BudgetCard
-import com.example.spendantt.ui.screens.home.components.CategoryBarChart
-import com.example.spendantt.ui.screens.home.components.ExpenseListItem
-import com.example.spendantt.ui.screens.home.components.MonthlyExpensesCard
+import com.example.spendantt.ui.theme.CategoryBlue
+import com.example.spendantt.ui.theme.CategoryCoralPink
+import com.example.spendantt.ui.theme.CategoryOrange
+import com.example.spendantt.ui.theme.CategoryYellow
+import com.example.spendantt.ui.theme.LabelIconMapper
 import com.example.spendantt.ui.theme.SpendAntFontFamily
-import com.example.spendantt.ui.theme.SpendAntGreen
+import com.example.spendantt.ui.theme.SpendAntGreenv2
 import com.example.spendantt.viewmodel.HomeViewModel
+import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -37,7 +47,8 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onNotificationsClick: () -> Unit = {}
+    onNotificationsClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     LaunchedEffect(Unit) {
         viewModel.refreshDailyBudget()
@@ -49,7 +60,8 @@ fun HomeScreen(
         monthlyExpenses = viewModel.monthlyExpenses.value,
         categoryExpenses = viewModel.categoryExpenses.value,
         allExpenses = viewModel.allExpenses.value,
-        onNotificationsClick = onNotificationsClick
+        onNotificationsClick = onNotificationsClick,
+        onLogoutClick = onLogoutClick
     )
 }
 
@@ -60,9 +72,30 @@ private fun HomeScreenContent(
     monthlyExpenses: Double,
     categoryExpenses: Map<String, Double>,
     allExpenses: List<ExpenseWithLabels>,
-    onNotificationsClick: () -> Unit = {}
+    onNotificationsClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     val expenseSections = rememberExpenseSections(allExpenses)
+
+    // Colores priorizados para las categorías
+    val priorityColors = listOf(
+        CategoryBlue,
+        CategoryOrange,
+        CategoryYellow,
+        CategoryCoralPink
+    )
+
+    // Crear mapa de colores por categoría basado en el ranking de gastos
+    val categoryColorMap = remember(categoryExpenses) {
+        val sortedCategories = categoryExpenses.entries.sortedByDescending { it.value }
+        sortedCategories.mapIndexed { index, (label, _) ->
+            label to if (index < priorityColors.size) {
+                priorityColors[index]
+            } else {
+                LabelIconMapper.getConsistentColorForLabel(label)
+            }
+        }.toMap()
+    }
 
     if (isLoading) {
         Box(
@@ -71,7 +104,7 @@ private fun HomeScreenContent(
                 .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = SpendAntGreenv2)
         }
         return
     }
@@ -82,66 +115,137 @@ private fun HomeScreenContent(
             .background(Color.White),
         contentPadding = PaddingValues(bottom = 110.dp)
     ) {
+        // Header verde con "Home"
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(SpendAntGreen)
-                    .padding(horizontal = 18.dp, vertical = 14.dp)
+                    .background(SpendAntGreenv2)
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Notifications,
+                    imageVector = Icons.Outlined.Notifications,
                     contentDescription = "Notifications",
                     tint = Color.Black,
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .size(22.dp)
+                        .size(24.dp)
                         .clickable(onClick = onNotificationsClick)
                 )
                 Text(
                     text = "Home",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = SpendAntFontFamily,
                     color = Color.Black,
                     modifier = Modifier.align(Alignment.Center)
                 )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ExitToApp,
+                    contentDescription = "Logout",
+                    tint = Color.Black,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(24.dp)
+                        .clickable(onClick = onLogoutClick)
+                )
             }
         }
 
+        // Your Budget for today
         item {
-            Spacer(modifier = Modifier.height(16.dp))
-            BudgetCard(
-                dailyBudget = dailyBudget,
-                modifier = Modifier.padding(horizontal = 18.dp)
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                Text(
+                    text = "Your Budget for today",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
+                    color = Color.Gray
+                )
+                Row(
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text(
+                        text = "$${DecimalFormat("#,##0").format(dailyBudget)}",
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = SpendAntFontFamily,
+                        color = SpendAntGreenv2
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "COP",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = SpendAntFontFamily,
+                        color = Color.Black,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
         }
 
+        // This month you have expended
         item {
-            Spacer(modifier = Modifier.height(14.dp))
-            MonthlyExpensesCard(
-                monthlyExpenses = monthlyExpenses,
-                modifier = Modifier.padding(horizontal = 18.dp)
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 20.dp)
+            ) {
+                Text(
+                    text = "This month you have expended",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
+                    color = Color.Gray
+                )
+                Row(
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text(
+                        text = "$${DecimalFormat("#,##0").format(monthlyExpenses)}",
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = SpendAntFontFamily,
+                        color = Color.Red
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "COP",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = SpendAntFontFamily,
+                        color = Color.Red,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
         }
 
+        // Category Bar Chart
         item {
-            Spacer(modifier = Modifier.height(14.dp))
             CategoryBarChart(
                 categoryExpenses = categoryExpenses,
-                modifier = Modifier.padding(horizontal = 18.dp)
+                categoryColorMap = categoryColorMap,
+                modifier = Modifier.padding(horizontal = 20.dp)
             )
         }
 
+        // Expense Sections
         expenseSections.forEach { section ->
             item(key = "header_${section.title}") {
                 Text(
-                    text = section.title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    text = "${section.title} Expenses",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
                     fontFamily = SpendAntFontFamily,
                     color = Color.Black,
-                    modifier = Modifier.padding(start = 18.dp, top = 20.dp, end = 18.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 12.dp)
                 )
             }
 
@@ -149,9 +253,10 @@ private fun HomeScreenContent(
                 count = section.expenses.size,
                 key = { index -> section.expenses[index].expense.id }
             ) { index ->
-                ExpenseListItem(
+                ExpenseCard(
                     expense = section.expenses[index],
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
+                    categoryColorMap = categoryColorMap,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 )
             }
         }
@@ -159,6 +264,161 @@ private fun HomeScreenContent(
         item {
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+}
+
+@Composable
+private fun CategoryBarChart(
+    categoryExpenses: Map<String, Double>,
+    categoryColorMap: Map<String, Color>,
+    modifier: Modifier = Modifier
+) {
+    if (categoryExpenses.isEmpty()) return
+
+    val maxAmount = categoryExpenses.values.maxOrNull() ?: 1.0
+    val categories = categoryExpenses.entries.sortedByDescending { it.value }.take(4)
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(220.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        categories.forEach { (label, amount) ->
+            val barColor = categoryColorMap[label] ?: LabelIconMapper.getConsistentColorForLabel(label)
+            CategoryBar(
+                label = label,
+                amount = amount,
+                maxAmount = maxAmount,
+                barColor = barColor,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryBar(
+    label: String,
+    amount: Double,
+    maxAmount: Double,
+    barColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val heightPercentage = (amount / maxAmount).coerceIn(0.35, 1.0).toFloat()
+    val iconRes = LabelIconMapper.getIconForLabel(label)
+    val maxBarHeight = 180.dp
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .width(75.dp)
+                .height(maxBarHeight * heightPercentage)
+                .clip(RoundedCornerShape(16.dp))
+                .background(barColor)
+                .padding(vertical = 12.dp, horizontal = 6.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = label,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(30.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = SpendAntFontFamily,
+                    color = Color.Black,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 13.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpenseCard(
+    expense: ExpenseWithLabels,
+    categoryColorMap: Map<String, Color>,
+    modifier: Modifier = Modifier
+) {
+    val firstLabel = expense.labels.firstOrNull()
+    val labelName = firstLabel?.name ?: "Other"
+    val iconRes = LabelIconMapper.getIconForLabel(labelName)
+    val cardColor = categoryColorMap[labelName] ?: LabelIconMapper.getConsistentColorForLabel(labelName)
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardColor.copy(alpha = 0.25f))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Icon circle
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(cardColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = labelName,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(26.dp)
+            )
+        }
+
+        // Name and category
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 14.dp, end = 8.dp)
+        ) {
+            Text(
+                text = expense.expense.name,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = SpendAntFontFamily,
+                color = Color.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = labelName,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = SpendAntFontFamily,
+                color = Color.Gray
+            )
+        }
+
+        // Amount
+        Text(
+            text = "COP ${DecimalFormat("#,##0").format(expense.expense.amount)}",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = SpendAntFontFamily,
+            color = Color.Black
+        )
     }
 }
 
@@ -171,7 +431,7 @@ fun HomeScreenPreview() {
             expense = ExpenseEntity(
                 id = 1,
                 userId = 1,
-                name = "Lunch",
+                name = "Chick & Chips Lunch",
                 amount = 23000.0,
                 date = now,
                 time = "13:10"
@@ -180,7 +440,7 @@ fun HomeScreenPreview() {
                 LabelEntity(
                     id = 1,
                     name = "Food",
-                    iconEmoji = "\uD83C\uDF54",
+                    iconEmoji = "",
                     userId = 1
                 )
             )
@@ -189,7 +449,7 @@ fun HomeScreenPreview() {
             expense = ExpenseEntity(
                 id = 2,
                 userId = 1,
-                name = "Bus to campus",
+                name = "TM To the University",
                 amount = 3500.0,
                 date = now,
                 time = "08:30"
@@ -198,7 +458,7 @@ fun HomeScreenPreview() {
                 LabelEntity(
                     id = 2,
                     name = "Transport",
-                    iconEmoji = "\uD83D\uDE8C",
+                    iconEmoji = "",
                     userId = 1
                 )
             )
@@ -207,7 +467,7 @@ fun HomeScreenPreview() {
             expense = ExpenseEntity(
                 id = 3,
                 userId = 1,
-                name = "Google Drive",
+                name = "Google Drive Month",
                 amount = 3500.0,
                 date = now - 86_400_000L,
                 time = "19:00"
@@ -216,7 +476,7 @@ fun HomeScreenPreview() {
                 LabelEntity(
                     id = 3,
                     name = "Services",
-                    iconEmoji = "\uD83D\uDCA1",
+                    iconEmoji = "",
                     userId = 1
                 )
             )
@@ -225,13 +485,13 @@ fun HomeScreenPreview() {
 
     HomeScreenContent(
         isLoading = false,
-        dailyBudget = 75000.0,
-        monthlyExpenses = 320000.0,
+        dailyBudget = 25500.0,
+        monthlyExpenses = 750000.0,
         categoryExpenses = mapOf(
             "Food" to 150000.0,
-            "Transport" to 70000.0,
-            "Services" to 60000.0,
-            "Other" to 40000.0
+            "Transport" to 120000.0,
+            "Services" to 100000.0,
+            "Gifts" to 80000.0
         ),
         allExpenses = allExpenses
     )
@@ -274,7 +534,7 @@ private fun rememberDayStart(timeMillis: Long): Long = startOfDay(timeMillis)
 
 private fun startOfDay(timeMillis: Long): Long {
     return Calendar.getInstance().apply {
-        timeInMillis = timeMillis
+        this.timeInMillis = timeMillis
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)

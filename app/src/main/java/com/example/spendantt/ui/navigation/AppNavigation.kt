@@ -63,7 +63,8 @@ fun AppNavigation(
     lastUserDisplayName: String = "",
     canUseBiometric: Boolean = false,
     onFingerprintClick: () -> Unit = {},
-    onLoginSuccess: (Int) -> Unit
+    onLoginSuccess: (Int) -> Unit,
+    onLogout: () -> Unit = {}
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -153,6 +154,12 @@ fun AppNavigation(
                     viewModel = homeViewModel,
                     onNotificationsClick = {
                         navController.navigate(Screen.Notifications.route) { launchSingleTop = true }
+                    },
+                    onLogoutClick = {
+                        onLogout()
+                        navController.navigate(Screen.Welcome.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 )
             }

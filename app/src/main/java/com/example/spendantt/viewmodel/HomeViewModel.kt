@@ -24,9 +24,13 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private val expenseRepository: ExpenseRepository
     private val goalRepository: GoalRepository
     private val incomeRepository: IncomeRepository
+    private val database: AppDatabase
 
     private val _dailyBudget = mutableStateOf(0.0)
     val dailyBudget: State<Double> = _dailyBudget
+
+    private val _monthlyBudget = mutableStateOf(0.0)
+    val monthlyBudget: State<Double> = _monthlyBudget
 
     private val _monthlyExpenses = mutableStateOf(0.0)
     val monthlyExpenses: State<Double> = _monthlyExpenses
@@ -43,12 +47,27 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private val _errorMessage = mutableStateOf("")
     val errorMessage: State<String> = _errorMessage
 
+    private val _userName = mutableStateOf("")
+    val userName: State<String> = _userName
+
     init {
-        val database = AppDatabase.getInstance(context)
+        database = AppDatabase.getInstance(context)
         expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
         goalRepository = GoalRepository(database.goalDao())
         incomeRepository = IncomeRepository(database.incomeDao())
         loadHomeData()
+        loadUserName()
+    }
+
+    private fun loadUserName() {
+        viewModelScope.launch {
+            try {
+                val user = database.userDao().getUserById(userId)
+                _userName.value = user?.displayName ?: user?.username ?: "User"
+            } catch (e: Exception) {
+                _userName.value = "User"
+            }
+        }
     }
 
     fun loadHomeData() {
@@ -117,10 +136,10 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
             try {
                 goalRepository.getActiveGoals(userId).collectLatest { goals ->
                     val incomes = incomeRepository.getIncomesByUser(userId).first()
-                    _dailyBudget.value = (
-                        DailyFinanceCalculator.sumDailyIncome(incomes) -
-                            DailyFinanceCalculator.sumDailyGoals(goals)
-                        ).coerceAtLeast(0.0)
+                    val dailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
+                    val dailyGoals = DailyFinanceCalculator.sumDailyGoals(goals)
+                    _dailyBudget.value = (dailyIncome - dailyGoals).coerceAtLeast(0.0)
+                    _monthlyBudget.value = (dailyIncome * 30).coerceAtLeast(0.0)
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error loading goals"
