@@ -4,22 +4,14 @@ import com.example.spendantt.data.local.dao.UserDao
 import com.example.spendantt.data.local.entity.UserEntity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 
-/**
- * Repository de usuarios.
- *
- * Fase 1: Todo local con Room
- * Fase 2: Inyectar ApiService aquí y decidir si va local o remoto
- *
- * Patrón:
- *   ViewModel → UserRepository → UserDao (local)
- *                              → ApiService (Fase 2)
- */
 class UserRepository(
     private val userDao: UserDao,
-    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
 
     // ── REGISTER ──────────────────────────────────────────────
@@ -33,7 +25,6 @@ class UserRepository(
                 return Result.failure(Exception("El nombre de usuario ya existe"))
             }
 
-            // 1. Crear en Firebase Auth
             val authResult = firebaseAuth
                 .createUserWithEmailAndPassword(email, password)
                 .await()
@@ -41,7 +32,6 @@ class UserRepository(
             val firebaseUid = authResult.user?.uid
                 ?: return Result.failure(Exception("Error al crear usuario en Firebase"))
 
-            // 2. Guardar en Room con firebaseUid
             val user = UserEntity(
                 firebaseUid = firebaseUid,
                 username = username,
@@ -51,6 +41,10 @@ class UserRepository(
                 handle = "@$username"
             )
             val id = userDao.insertUser(user)
+
+            // Guardar en Firestore para que otros dispositivos puedan hacer login
+            saveUserToFirestore(user.copy(id = id.toInt()), firebaseUid)
+
             Result.success(user.copy(id = id.toInt()))
 
         } catch (e: Exception) {
@@ -61,11 +55,36 @@ class UserRepository(
     // ── LOGIN ─────────────────────────────────────────────────
     suspend fun login(username: String, password: String): Result<UserEntity> {
         return try {
-            // 1. Buscar usuario en Room por username para obtener email
-            val localUser = userDao.getUserByUsername(username)
-                ?: return Result.failure(Exception("Usuario o contraseña incorrectos"))
+            // 1. Buscar en Room local primero
+            var localUser = userDao.getUserByUsername(username)
 
-            // 2. Login en Firebase Auth con email
+            // 2. Si no está en Room → buscar email en Firestore
+            if (localUser == null) {
+                val email = findEmailByUsernameInFirestore(username)
+                    ?: return Result.failure(Exception("Usuario o contraseña incorrectos"))
+
+                // 3. Login en Firebase Auth con el email de Firestore
+                val authResult = firebaseAuth
+                    .signInWithEmailAndPassword(email, password)
+                    .await()
+
+                val firebaseUid = authResult.user?.uid
+                    ?: return Result.failure(Exception("Error de autenticación"))
+
+                // 4. Guardar usuario en Room local para próximos logins
+                val newLocalUser = UserEntity(
+                    firebaseUid = firebaseUid,
+                    username = username,
+                    email = email,
+                    passwordHash = hashPassword(password),
+                    displayName = username,
+                    handle = "@$username"
+                )
+                val id = userDao.insertUser(newLocalUser)
+                return Result.success(newLocalUser.copy(id = id.toInt()))
+            }
+
+            // 5. Usuario ya está en Room → login normal con Firebase
             val authResult = firebaseAuth
                 .signInWithEmailAndPassword(localUser.email, password)
                 .await()
@@ -73,7 +92,6 @@ class UserRepository(
             val firebaseUid = authResult.user?.uid
                 ?: return Result.failure(Exception("Error de autenticación"))
 
-            // 3. Actualizar firebaseUid si no estaba guardado
             if (localUser.firebaseUid == null) {
                 userDao.updateUser(localUser.copy(firebaseUid = firebaseUid))
             }
@@ -81,13 +99,46 @@ class UserRepository(
             Result.success(localUser.copy(firebaseUid = firebaseUid))
 
         } catch (e: Exception) {
-            // Fallback offline: si no hay internet, login local con Room
+            // Fallback offline: login local con Room
             val localUser = userDao.login(username, hashPassword(password))
             if (localUser != null) {
                 Result.success(localUser)
             } else {
                 Result.failure(mapFirebaseError(e))
             }
+        }
+    }
+
+    // ── FIRESTORE ─────────────────────────────────────────────
+    private suspend fun saveUserToFirestore(user: UserEntity, firebaseUid: String) {
+        try {
+            val data = mapOf(
+                "uid" to firebaseUid,
+                "username" to user.username,
+                "email" to user.email,
+                "displayName" to user.displayName,
+                "handle" to user.handle,
+                "createdAt" to user.createdAt
+            )
+            firestore.collection("users")
+                .document(firebaseUid)
+                .set(data)
+                .await()
+        } catch (e: Exception) {
+            // Fallo silencioso
+        }
+    }
+
+    private suspend fun findEmailByUsernameInFirestore(username: String): String? {
+        return try {
+            val result = firestore.collection("users")
+                .whereEqualTo("username", username)
+                .limit(1)
+                .get()
+                .await()
+            result.documents.firstOrNull()?.getString("email")
+        } catch (e: Exception) {
+            null
         }
     }
 

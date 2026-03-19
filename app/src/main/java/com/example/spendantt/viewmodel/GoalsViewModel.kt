@@ -28,7 +28,8 @@ data class GoalListItemUiState(
 
 class GoalsViewModel(
     context: Context,
-    private val userId: Int
+    private val userId: Int,
+    private val firebaseUid: String? = null  // ← NUEVO
 ) : ViewModel() {
     private val database = AppDatabase.getInstance(context)
     private val expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
@@ -93,8 +94,9 @@ class GoalsViewModel(
             return message
         }
 
+        // Pasar firebaseUid para sincronizar con Firestore
         val result = repository.insertGoal(
-            GoalEntity(
+            goal = GoalEntity(
                 userId = userId,
                 name = name,
                 targetAmount = targetAmount,
@@ -102,7 +104,8 @@ class GoalsViewModel(
                 deadline = deadline,
                 createdAt = createdAt,
                 isCompleted = false
-            )
+            ),
+            firebaseUid = firebaseUid
         )
 
         val newGoalId = result.getOrNull()?.toInt()
@@ -161,7 +164,6 @@ class GoalsViewModel(
             preferences.clearSelectedGoalId(userId)
             return null
         }
-
         val savedId = preferences.getSelectedGoalId(userId)
         val selectedId = when {
             savedId != null && goals.any { it.id == savedId } -> savedId

@@ -12,8 +12,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
-// ── UI STATE ──────────────────────────────────────────────────────────────────
-
 data class BudgetUiState(
     val incomes: List<IncomeEntity> = emptyList(),
     val totalIncome: Double = 0.0,
@@ -29,17 +27,15 @@ data class NewIncomeFormState(
     val recurrenceInterval: String = "1",
     val recurrenceUnit: RecurrenceUnit = RecurrenceUnit.MONTHS,
     val startDate: Long = System.currentTimeMillis(),
-    // Errores de validación por campo
     val nameError: String? = null,
     val amountError: String? = null,
     val isSubmitting: Boolean = false
 )
 
-// ── VIEWMODEL ─────────────────────────────────────────────────────────────────
-
 class BudgetViewModel(
     private val incomeRepository: IncomeRepository,
-    private val userId: Int
+    private val userId: Int,
+    private val firebaseUid: String? = null  // ← NUEVO
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BudgetUiState())
@@ -53,22 +49,15 @@ class BudgetViewModel(
         loadTotalIncome()
     }
 
-    // ── CARGAR DATOS ──────────────────────────────────────────
     private fun loadIncomes() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             incomeRepository.getIncomesByUser(userId)
                 .catch { e ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        errorMessage = e.message
-                    )
+                    _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = e.message)
                 }
                 .collect { incomes ->
-                    _uiState.value = _uiState.value.copy(
-                        incomes = incomes,
-                        isLoading = false
-                    )
+                    _uiState.value = _uiState.value.copy(incomes = incomes, isLoading = false)
                 }
         }
     }
@@ -83,7 +72,6 @@ class BudgetViewModel(
         }
     }
 
-    // ── FORM: ACTUALIZAR CAMPOS ───────────────────────────────
     fun onNameChange(value: String) {
         _formState.value = _formState.value.copy(name = value, nameError = null)
     }
@@ -113,11 +101,9 @@ class BudgetViewModel(
         _formState.value = NewIncomeFormState()
     }
 
-    // ── GUARDAR INGRESO ───────────────────────────────────────
     fun saveIncome(onSuccess: () -> Unit) {
         val form = _formState.value
 
-        // Validación
         var hasError = false
         if (form.name.isBlank()) {
             _formState.value = _formState.value.copy(nameError = "El nombre es requerido")
@@ -145,7 +131,8 @@ class BudgetViewModel(
                 startDate = form.startDate
             )
 
-            val result = incomeRepository.insertIncome(income)
+            // Pasar firebaseUid para sincronizar con Firestore
+            val result = incomeRepository.insertIncome(income, firebaseUid)
             _formState.value = _formState.value.copy(isSubmitting = false)
 
             result.fold(
@@ -161,10 +148,9 @@ class BudgetViewModel(
         }
     }
 
-    // ── ELIMINAR INGRESO ──────────────────────────────────────
     fun deleteIncome(income: IncomeEntity) {
         viewModelScope.launch {
-            incomeRepository.deleteIncome(income)
+            incomeRepository.deleteIncome(income, firebaseUid)
         }
     }
 

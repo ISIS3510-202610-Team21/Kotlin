@@ -11,10 +11,10 @@ import com.example.spendantt.data.local.entity.LabelEntity
 import com.example.spendantt.data.ocr.OcrProcessor
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.LabelRepository
+import com.example.spendantt.data.service.AutoCategorizationService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -40,11 +40,12 @@ data class NewExpenseUiState(
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val error: String? = null,
-    // Labels
     val selectedLabelIds: Set<Int> = emptySet(),
     val selectedLabels: List<LabelEntity> = emptyList(),
     val allLabels: List<LabelEntity> = emptyList(),
-    val labelsGroupedByCategory: Map<String, List<LabelEntity>> = emptyMap()
+    val labelsGroupedByCategory: Map<String, List<LabelEntity>> = emptyMap(),
+    val showLabelPrompt: Boolean = false,
+    val pendingExpenseId: Int? = null
 )
 
 class NewExpenseViewModel(
@@ -56,6 +57,9 @@ class NewExpenseViewModel(
     private val repository = ExpenseRepository(db.expenseDao(), db.labelDao())
     private val labelRepository = LabelRepository(db.labelDao())
     private val ocrProcessor = OcrProcessor(context)
+    private val autoCategorizationService = AutoCategorizationService(context, userId)
+
+    private var firebaseUid: String? = null
 
     private val cloudinaryCloudName = "dpvrhtjka"
     private val cloudinaryUploadPreset = "SpendAnt"
@@ -74,13 +78,18 @@ class NewExpenseViewModel(
             time = timeFormat.format(now.time)
         )
         loadLabels()
+        loadFirebaseUid()
     }
 
-    // ── LABELS ─────────────────────────────────────────────────
+    private fun loadFirebaseUid() {
+        viewModelScope.launch {
+            firebaseUid = db.userDao().getUserById(userId)?.firebaseUid
+        }
+    }
+
     private fun loadLabels() {
         viewModelScope.launch {
             labelRepository.getLabelsByUser(userId).collect { labels ->
-                // Si no hay labels, insertar los por defecto
                 if (labels.isEmpty()) {
                     labelRepository.insertDefaultLabels(userId)
                 } else {
@@ -96,11 +105,8 @@ class NewExpenseViewModel(
 
     fun toggleLabel(label: LabelEntity) {
         val currentIds = _uiState.value.selectedLabelIds.toMutableSet()
-        if (currentIds.contains(label.id)) {
-            currentIds.remove(label.id)
-        } else {
-            currentIds.add(label.id)
-        }
+        if (currentIds.contains(label.id)) currentIds.remove(label.id)
+        else currentIds.add(label.id)
         val selectedLabels = _uiState.value.allLabels.filter { currentIds.contains(it.id) }
         _uiState.value = _uiState.value.copy(
             selectedLabelIds = currentIds,
@@ -115,55 +121,37 @@ class NewExpenseViewModel(
         )
     }
 
-    fun onNameChange(value: String) {
-        _uiState.value = _uiState.value.copy(name = value)
-    }
-
-    fun onAmountChange(value: String) {
-        _uiState.value = _uiState.value.copy(amount = value)
-    }
+    fun onNameChange(value: String) { _uiState.value = _uiState.value.copy(name = value) }
+    fun onAmountChange(value: String) { _uiState.value = _uiState.value.copy(amount = value) }
 
     fun onReceiptSelected(uri: Uri) {
-        _uiState.value = _uiState.value.copy(
-            receiptImageUri = uri,
-            source = ExpenseSource.OCR
-        )
-        // Subir imagen y procesar OCR en paralelo
+        _uiState.value = _uiState.value.copy(receiptImageUri = uri, source = ExpenseSource.OCR)
         uploadReceiptToCloudinary(uri)
         processOcr(uri)
     }
 
-    // ── OCR ───────────────────────────────────────────────────
     private fun processOcr(uri: Uri) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessingOcr = true)
             try {
                 val result = ocrProcessor.processReceipt(uri)
                 autoFillFromReceipt(
-                    name = result.name,
-                    amount = result.amount,
-                    date = result.date,
-                    time = result.time,
-                    locationName = result.locationName
+                    name = result.name, amount = result.amount,
+                    date = result.date, time = result.time, locationName = result.locationName
                 )
             } catch (e: Exception) {
-                // Fallo silencioso — el usuario puede llenar manualmente
             } finally {
                 _uiState.value = _uiState.value.copy(isProcessingOcr = false)
             }
         }
     }
 
-    // ── CLOUDINARY ────────────────────────────────────────────
     private fun uploadReceiptToCloudinary(uri: Uri) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isUploadingImage = true)
             try {
                 val url = withContext(Dispatchers.IO) { uploadToCloudinary(uri) }
-                _uiState.value = _uiState.value.copy(
-                    receiptStorageUrl = url,
-                    isUploadingImage = false
-                )
+                _uiState.value = _uiState.value.copy(receiptStorageUrl = url, isUploadingImage = false)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isUploadingImage = false)
             }
@@ -199,23 +187,14 @@ class NewExpenseViewModel(
         }
 
         val responseCode = connection.responseCode
-        if (responseCode != HttpURLConnection.HTTP_OK) {
-            throw Exception("Error al subir imagen: $responseCode")
-        }
-
-        val response = connection.inputStream.bufferedReader().readText()
-        return JSONObject(response).getString("secure_url")
+        if (responseCode != HttpURLConnection.HTTP_OK) throw Exception("Error: $responseCode")
+        return JSONObject(connection.inputStream.bufferedReader().readText()).getString("secure_url")
     }
 
-    // ── AUTOFILL OCR ──────────────────────────────────────────
     fun autoFillFromReceipt(
-        name: String? = null,
-        amount: String? = null,
-        date: String? = null,
-        time: String? = null,
-        locationName: String? = null,
-        latitude: Double? = null,
-        longitude: Double? = null
+        name: String? = null, amount: String? = null, date: String? = null,
+        time: String? = null, locationName: String? = null,
+        latitude: Double? = null, longitude: Double? = null
     ) {
         _uiState.value = _uiState.value.copy(
             name = name ?: _uiState.value.name,
@@ -229,7 +208,6 @@ class NewExpenseViewModel(
         )
     }
 
-    // ── GUARDAR ───────────────────────────────────────────────
     fun saveExpense() {
         val state = _uiState.value
         val name = state.name.trim()
@@ -256,14 +234,50 @@ class NewExpenseViewModel(
                     longitude = state.longitude,
                     locationName = state.locationName.ifEmpty { null },
                     source = state.source,
-                    receiptImagePath = state.receiptStorageUrl ?: state.receiptImageUri?.toString()
+                    receiptImagePath = state.receiptStorageUrl ?: state.receiptImageUri?.toString(),
+                    isPendingCategory = state.selectedLabelIds.isEmpty()
                 )
-                // Guardar expense con labels seleccionados
-                repository.insertExpense(expense, state.selectedLabelIds.toList())
+
+                val expenseId = repository.insertExpense(expense, state.selectedLabelIds.toList(), firebaseUid)
+                val id = expenseId.getOrNull()?.toInt()
+
+                if (state.selectedLabelIds.isEmpty() && id != null) {
+                    val categorized = autoCategorizationService.categorizeExpense(id, name, firebaseUid)
+                    if (!categorized) {
+                        _uiState.value = _uiState.value.copy(
+                            isSaving = false,
+                            showLabelPrompt = true,
+                            pendingExpenseId = id
+                        )
+                        return@launch
+                    }
+                }
+
                 _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
+    }
+
+    fun savePendingLabels() {
+        val state = _uiState.value
+        val expenseId = state.pendingExpenseId ?: return
+
+        viewModelScope.launch {
+            state.selectedLabelIds.forEach { labelId ->
+                autoCategorizationService.assignLabelManually(
+                    expenseId = expenseId,
+                    labelId = labelId,
+                    expenseName = state.name,
+                    firebaseUid = firebaseUid
+                )
+            }
+            _uiState.value = _uiState.value.copy(isSaved = true, showLabelPrompt = false)
+        }
+    }
+
+    fun dismissLabelPrompt() {
+        _uiState.value = _uiState.value.copy(isSaved = true, showLabelPrompt = false)
     }
 }
