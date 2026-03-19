@@ -89,7 +89,8 @@ class BudgetViewModel(
     }
 
     fun onAmountChange(value: String) {
-        _formState.value = _formState.value.copy(amount = value, amountError = null)
+        val numericValue = value.filter(Char::isDigit)
+        _formState.value = _formState.value.copy(amount = numericValue, amountError = null)
     }
 
     fun onIncomeTypeChange(type: IncomeType) {

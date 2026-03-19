@@ -32,6 +32,7 @@ import com.example.spendantt.viewmodel.GoalsViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
 import com.example.spendantt.viewmodel.LoginViewModel
 import com.example.spendantt.viewmodel.NewExpenseViewModel
+import com.example.spendantt.viewmodel.NotificationsViewModel
 import com.example.spendantt.viewmodel.RegisterViewModel
 
 sealed class Screen(val route: String) {
@@ -225,8 +226,12 @@ fun AppNavigation(
             }
 
             composable(Screen.Notifications.route) {
+                if (currentUserId == null) return@composable
+                val notificationsViewModel = remember(currentUserId) {
+                    NotificationsViewModel(context, currentUserId)
+                }
                 NotificationsScreen(
-                    notifications = emptyList(),
+                    notifications = notificationsViewModel.notifications.value,
                     onBackClick = { navController.popBackStack() }
                 )
             }
