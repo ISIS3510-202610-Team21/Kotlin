@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,12 +8,14 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
-val pineconeApiKey = rootProject.file("local.properties")
-    .takeIf { it.exists() }
-    ?.readLines()
-    ?.firstOrNull { it.startsWith("pinecone.api.key=") }
-    ?.substringAfter("=")
-    ?: ""
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+
+val pineconeApiKey = localProperties.getProperty("pinecone.api.key", "")
 
 android {
     namespace = "com.example.spendantt"
