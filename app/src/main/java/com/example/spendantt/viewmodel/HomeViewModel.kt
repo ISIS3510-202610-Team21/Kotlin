@@ -14,7 +14,9 @@ import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.data.repository.NotificationRepository
+import com.example.spendantt.data.repository.SpendingHistoryRepository
 import com.example.spendantt.util.DailyFinanceCalculator
+import com.example.spendantt.util.SpendingAnomalyCalculator
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -27,6 +29,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private val goalRepository: GoalRepository
     private val incomeRepository: IncomeRepository
     private val notificationRepository: NotificationRepository
+    private val spendingHistoryRepository: SpendingHistoryRepository
     private val goalPreferences: GoalPreferences
     private val database: AppDatabase
 
@@ -63,6 +66,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         goalRepository = GoalRepository(database.goalDao())
         incomeRepository = IncomeRepository(database.incomeDao())
         notificationRepository = NotificationRepository(context)
+        spendingHistoryRepository = SpendingHistoryRepository(context)
         goalPreferences = GoalPreferences(context)
         loadHomeData()
         loadUserName()
@@ -248,7 +252,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         return categoryMap
     }
 
-    private fun updateNotifications(
+    private suspend fun updateNotifications(
         allGoals: List<GoalEntity>,
         activeGoals: List<GoalEntity>,
         totalDailyIncome: Double,
@@ -258,12 +262,28 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     ) {
         val todayKey = startOfTodayMillis(now)
         val currency = DecimalFormat("#,##0").format(todayExpenses)
+        val user = database.userDao().getUserById(userId)
+        val userCreatedAt = user?.createdAt ?: now
         Log.d(
             TAG,
             "updateNotifications userId=$userId day=$todayKey todayExpenses=$todayExpenses activeGoals=${activeGoals.size} totalDailyIncome=$totalDailyIncome"
         )
 
-        if (DailyFinanceCalculator.isDailyBudgetExceeded(totalDailyIncome, activeGoals, todayExpenses)) {
+        syncWelcomeNotification(
+            allGoals = allGoals,
+            totalDailyIncome = totalDailyIncome,
+            expenses = expenses
+        )
+
+        syncSpendingAnomalyNotification(
+            expenses = expenses,
+            userCreatedAt = userCreatedAt,
+            now = now
+        )
+
+        if (totalDailyIncome > 0.0 &&
+            DailyFinanceCalculator.isDailyBudgetExceeded(totalDailyIncome, activeGoals, todayExpenses)
+        ) {
             notificationRepository.upsertDailyNotification(
                 userId = userId,
                 type = "budget_exceeded",
@@ -350,6 +370,81 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         }
     }
 
+    private fun syncWelcomeNotification(
+        allGoals: List<GoalEntity>,
+        totalDailyIncome: Double,
+        expenses: List<ExpenseWithLabels>
+    ) {
+        if (totalDailyIncome <= 0.0 && expenses.isEmpty() && allGoals.isEmpty()) {
+            notificationRepository.upsertNotification(
+                userId = userId,
+                notificationId = "welcome_$userId",
+                type = "welcome",
+                title = "Welcome to SpendAnt",
+                body = "Thanks for using SpendAnt. Start by adding your income and goals."
+            )
+        }
+    }
+
+    private fun syncSpendingAnomalyNotification(
+        expenses: List<ExpenseWithLabels>,
+        userCreatedAt: Long,
+        now: Long
+    ) {
+        if (!hasMinimumAccountAgeForSpendingAnomaly(userCreatedAt, now)) {
+            val yesterdayStart = startOfTodayMillis(now) - ONE_DAY_MILLIS
+            notificationRepository.removeDailyNotification(
+                userId = userId,
+                type = "spending_anomaly",
+                dayStart = yesterdayStart
+            )
+            return
+        }
+
+        val todayStart = startOfTodayMillis(now)
+        val recentClosedDays = (1..6).map { dayOffset ->
+            val dayStart = todayStart - (dayOffset * ONE_DAY_MILLIS)
+            val dayEndExclusive = dayStart + ONE_DAY_MILLIS
+            com.example.spendantt.data.repository.DailyExpenseTotal(
+                dayStart = dayStart,
+                totalExpense = SpendingAnomalyCalculator.sumExpensesForDay(
+                    expenses = expenses,
+                    dayStart = dayStart,
+                    dayEndExclusive = dayEndExclusive
+                )
+            )
+        }
+
+        spendingHistoryRepository.saveRecentClosedDays(userId, recentClosedDays)
+
+        val analyzedDay = recentClosedDays.firstOrNull() ?: return
+        val baseline = recentClosedDays.drop(1).take(5)
+        val stats = SpendingAnomalyCalculator.calculateStats(baseline)
+
+        if (stats != null && SpendingAnomalyCalculator.isAnomalous(analyzedDay.totalExpense, stats)) {
+            notificationRepository.upsertDailyNotification(
+                userId = userId,
+                type = "spending_anomaly",
+                dayStart = analyzedDay.dayStart,
+                title = "Spending anomaly detected",
+                body = "Yesterday you spent more than expected. Be careful with your spending."
+            )
+        } else {
+            notificationRepository.removeDailyNotification(
+                userId = userId,
+                type = "spending_anomaly",
+                dayStart = analyzedDay.dayStart
+            )
+        }
+    }
+
+    private fun hasMinimumAccountAgeForSpendingAnomaly(userCreatedAt: Long, now: Long): Boolean {
+        val accountStart = startOfTodayMillis(userCreatedAt)
+        val todayStart = startOfTodayMillis(now)
+        val ageInDays = ((todayStart - accountStart) / ONE_DAY_MILLIS).coerceAtLeast(0L)
+        return ageInDays >= 5L
+    }
+
     private fun getMonthDateRange(now: Long = System.currentTimeMillis()): Pair<Long, Long> {
         val calendar = Calendar.getInstance().apply { timeInMillis = now }
         calendar.set(Calendar.DAY_OF_MONTH, 1)
@@ -382,5 +477,6 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
 
     companion object {
         private const val TAG = "SpendAntHomeNotif"
+        private const val ONE_DAY_MILLIS = 24L * 60L * 60L * 1000L
     }
 }

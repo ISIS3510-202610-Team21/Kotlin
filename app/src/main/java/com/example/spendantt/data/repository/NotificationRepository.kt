@@ -180,7 +180,9 @@ class NotificationRepository(context: Context) {
     fun pruneFutureDailyNotifications(userId: Int, maxAllowedDayStart: Long) {
         val notifications = getNotifications(userId)
         val removedIds = notifications.filter { notification ->
-            val isDailyType = notification.type == "budget_exceeded" || notification.type == "goal_adjustment"
+            val isDailyType = notification.type == "budget_exceeded" ||
+                notification.type == "goal_adjustment" ||
+                notification.type == "spending_anomaly"
             val dayStart = notification.id.substringAfterLast('_').toLongOrNull()
             isDailyType && dayStart != null && dayStart > maxAllowedDayStart
         }.map { it.id }
