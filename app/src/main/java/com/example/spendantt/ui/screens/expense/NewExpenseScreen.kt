@@ -1,23 +1,58 @@
 package com.example.spendantt.ui.screens.expense
 
 import android.Manifest
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,16 +66,40 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.spendantt.BuildConfig
 import com.example.spendantt.R
 import com.example.spendantt.ui.screens.labels.LabelsScreen
-import com.example.spendantt.ui.theme.*
+import com.example.spendantt.ui.theme.SpendAntBlack
+import com.example.spendantt.ui.theme.SpendAntFontFamily
+import com.example.spendantt.ui.theme.SpendAntGreen
+import com.example.spendantt.ui.theme.SpendAntWhite
 import com.example.spendantt.viewmodel.NewExpenseViewModel
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.tasks.CancellationTokenSource
+import com.google.android.gms.maps.model.LatLng
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import kotlinx.coroutines.launch
+import android.location.Geocoder
+import android.os.Build
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 private enum class ExpenseScreenState {
     FORM,
     LABELS,
-    LABEL_PROMPT
+    LABEL_PROMPT,
+    MAP_PICKER
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,9 +124,11 @@ fun NewExpenseScreen(
                 viewModel = viewModel,
                 onClose = onClose,
                 onSaved = onSaved,
-                onLabelClick = { currentScreen = ExpenseScreenState.LABELS }
+                onLabelClick = { currentScreen = ExpenseScreenState.LABELS },
+                onLocationClick = { currentScreen = ExpenseScreenState.MAP_PICKER }
             )
         }
+
         ExpenseScreenState.LABELS -> {
             LabelsScreen(
                 labelsGroupedByCategory = uiState.labelsGroupedByCategory,
@@ -77,10 +138,23 @@ fun NewExpenseScreen(
                 onClose = { currentScreen = ExpenseScreenState.FORM }
             )
         }
+
         ExpenseScreenState.LABEL_PROMPT -> {
             LabelPromptScreen(
                 viewModel = viewModel,
                 onSaved = onSaved
+            )
+        }
+
+        ExpenseScreenState.MAP_PICKER -> {
+            MapPickerScreen(
+                initialLatitude = uiState.latitude,
+                initialLongitude = uiState.longitude,
+                onClose = { currentScreen = ExpenseScreenState.FORM },
+                onConfirm = { latLng ->
+                    viewModel.onLocationSelected(latLng.latitude, latLng.longitude)
+                    currentScreen = ExpenseScreenState.FORM
+                }
             )
         }
     }
@@ -97,23 +171,13 @@ private fun LabelPromptScreen(
         if (uiState.isSaved) onSaved()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(SpendAntWhite)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SpendAntWhite)
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(SpendAntGreen)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Text(
-                    text = "Labels",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = SpendAntFontFamily,
-                    color = SpendAntBlack,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
+            TopBar(title = "Labels", onClose = {}, onConfirm = {})
 
             Column(
                 modifier = Modifier
@@ -158,7 +222,8 @@ private fun NewExpenseFormContent(
     viewModel: NewExpenseViewModel,
     onClose: () -> Unit,
     onSaved: () -> Unit,
-    onLabelClick: () -> Unit
+    onLabelClick: () -> Unit,
+    onLocationClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -208,49 +273,21 @@ private fun NewExpenseFormContent(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(SpendAntWhite)) {
-
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SpendAntWhite)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(SpendAntGreen)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = SpendAntBlack
-                    )
-                }
-                Text(
-                    text = "New Expense",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = SpendAntFontFamily,
-                    color = SpendAntBlack,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-                IconButton(
-                    onClick = { viewModel.saveExpense() },
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Save",
-                        tint = SpendAntBlack
-                    )
-                }
-            }
+            TopBar(
+                title = "New Expense",
+                onClose = onClose,
+                onConfirm = { viewModel.saveExpense() }
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -258,42 +295,84 @@ private fun NewExpenseFormContent(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-
-                OutlinedTextField(
-                    value = uiState.name,
-                    onValueChange = { viewModel.onNameChange(it) },
-                    placeholder = { Text("Expense name", color = SpendAntBlack) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SpendAntGreen,
-                        unfocusedBorderColor = Color(0xFFE0E0E0),
-                        focusedTextColor = SpendAntBlack,
-                        unfocusedTextColor = SpendAntBlack,
-                        focusedPlaceholderColor = SpendAntBlack,
-                        unfocusedPlaceholderColor = SpendAntBlack,
-                        cursorColor = SpendAntBlack
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFE2F8E4))
+                ) {
+                    OutlinedTextField(
+                        value = uiState.name,
+                        onValueChange = { viewModel.onNameChange(it) },
+                        placeholder = { Text("Expense name", color = Color(0xFF6D6D6D)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(0.dp),
+                        colors = expenseEntryFieldColors()
                     )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(SpendAntBlack)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFE2F8E4))
+                ) {
+                    OutlinedTextField(
+                        value = uiState.amount,
+                        onValueChange = { viewModel.onAmountChange(it) },
+                        placeholder = { Text("$ 0", color = Color(0xFF6D6D6D)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(0.dp),
+                        colors = expenseEntryFieldColors()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(SpendAntBlack)
+                    )
+                }
+
+                ExpenseMetaPickerRow(
+                    iconRes = R.drawable.ic_calendar,
+                    label = "Date",
+                    value = uiState.date.ifEmpty { "Select date" },
+                    onClick = {
+                        showDatePicker(
+                            context = context,
+                            initialDate = uiState.date,
+                            onDateSelected = viewModel::onDateSelected
+                        )
+                    }
                 )
 
-                OutlinedTextField(
-                    value = uiState.amount,
-                    onValueChange = { viewModel.onAmountChange(it) },
-                    placeholder = { Text("$ Amount", color = SpendAntBlack) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SpendAntGreen,
-                        unfocusedBorderColor = Color(0xFFE0E0E0),
-                        focusedTextColor = SpendAntBlack,
-                        unfocusedTextColor = SpendAntBlack,
-                        focusedPlaceholderColor = SpendAntBlack,
-                        unfocusedPlaceholderColor = SpendAntBlack,
-                        cursorColor = SpendAntBlack
-                    )
+                ExpenseMetaPickerRow(
+                    iconRes = R.drawable.ic_clock,
+                    label = "Time",
+                    value = uiState.time.ifEmpty { "Select time" },
+                    onClick = {
+                        showTimePicker(
+                            context = context,
+                            initialTime = uiState.time,
+                            onTimeSelected = viewModel::onTimeSelected
+                        )
+                    }
+                )
+
+                ExpenseMetaPickerRow(
+                    iconRes = R.drawable.ic_location,
+                    label = "Location",
+                    value = uiState.locationName.ifEmpty { "Pick from map" },
+                    onClick = onLocationClick
                 )
 
                 FlowRow(
@@ -368,115 +447,24 @@ private fun NewExpenseFormContent(
 
                 if (uiState.receiptImageUri != null) {
                     Text(
-                        text = "Receipt selected",
+                        text = "Receipt selected. OCR can update amount, date, time and merchant.",
                         color = SpendAntGreen,
                         fontSize = 13.sp,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        textAlign = TextAlign.Center
                     )
                 }
 
                 if (uiState.isUploadingImage) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                            color = SpendAntGreen
-                        )
-                        Text("Uploading receipt...", fontSize = 13.sp, color = SpendAntBlack)
-                    }
+                    InlineLoading(text = "Uploading receipt...")
                 }
 
                 if (uiState.isProcessingOcr) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                            color = SpendAntGreen
-                        )
-                        Text("Reading receipt...", fontSize = 13.sp, color = SpendAntBlack)
-                    }
+                    InlineLoading(text = "Reading receipt...")
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = Color(0xFFE0E0E0),
-                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                    )
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_calendar),
-                            contentDescription = "Date",
-                            modifier = Modifier.size(16.dp),
-                            tint = SpendAntBlack
-                        )
-                        Text(
-                            text = uiState.date.ifEmpty { "--/--/----" },
-                            fontSize = 12.sp,
-                            color = SpendAntBlack
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_clock),
-                            contentDescription = "Time",
-                            modifier = Modifier.size(16.dp),
-                            tint = SpendAntBlack
-                        )
-                        Text(
-                            text = uiState.time.ifEmpty { "--:--" },
-                            fontSize = 12.sp,
-                            color = SpendAntBlack
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_location),
-                            contentDescription = "Location",
-                            modifier = Modifier.size(16.dp),
-                            tint = SpendAntBlack
-                        )
-                        Text(
-                            text = if (uiState.locationName.isNotEmpty())
-                                uiState.locationName.take(12) + if (uiState.locationName.length > 12) "..." else ""
-                            else "Location...",
-                            fontSize = 12.sp,
-                            color = SpendAntBlack
-                        )
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(24.dp))
 
             if (uiState.error != null) {
                 Text(
@@ -490,7 +478,9 @@ private fun NewExpenseFormContent(
 
         if (uiState.isSaving) {
             Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f)),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(color = SpendAntGreen)
@@ -529,7 +519,8 @@ private fun NewExpenseFormContent(
                         onClick = {
                             showReceiptOptions = false
                             val hasCameraPermission = ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.CAMERA
+                                context,
+                                Manifest.permission.CAMERA
                             ) == PackageManager.PERMISSION_GRANTED
 
                             if (hasCameraPermission) {
@@ -573,6 +564,402 @@ private fun NewExpenseFormContent(
 }
 
 @Composable
+private fun MapPickerScreen(
+    initialLatitude: Double?,
+    initialLongitude: Double?,
+    onClose: () -> Unit,
+    onConfirm: (LatLng) -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val defaultLatLng = remember(initialLatitude, initialLongitude) {
+        if (initialLatitude != null && initialLongitude != null) {
+            LatLng(initialLatitude, initialLongitude)
+        } else {
+            LatLng(4.7110, -74.0721)
+        }
+    }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedLatLng by remember {
+        mutableStateOf<LatLng?>(if (initialLatitude != null && initialLongitude != null) defaultLatLng else null)
+    }
+    var mapInstance by remember { mutableStateOf<GoogleMap?>(null) }
+    val mapView = rememberMapViewWithLifecycle()
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            requestCurrentLocation(
+                context = context,
+                fusedLocationClient = fusedLocationClient,
+                onMapClick = { latLng ->
+                    selectedLatLng = latLng
+                    mapInstance?.let { updateMapSelection(it, defaultLatLng, latLng) }
+                }
+            )
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SpendAntWhite)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopBar(
+                title = "Pick Location",
+                onClose = onClose,
+                onConfirm = {
+                    selectedLatLng?.let(onConfirm)
+                }
+            )
+
+            if (BuildConfig.MAPS_API_KEY.isBlank()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Add MAPS_API_KEY to local.properties to enable map selection.",
+                        color = SpendAntBlack,
+                        fontSize = 16.sp,
+                        fontFamily = SpendAntFontFamily,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            } else {
+                Box(modifier = Modifier.weight(1f)) {
+                    AndroidView(
+                        factory = {
+                            mapView.apply {
+                                getMapAsync { googleMap ->
+                                    mapInstance = googleMap
+                                    configureMap(googleMap, defaultLatLng) { latLng ->
+                                        selectedLatLng = latLng
+                                    }
+                                    updateMapSelection(googleMap, defaultLatLng, selectedLatLng)
+                                }
+                            }
+                        },
+                        update = {
+                            mapInstance?.let { googleMap ->
+                                updateMapSelection(googleMap, defaultLatLng, selectedLatLng)
+                            }
+                        }
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = {
+                                Text(
+                                    "Search place",
+                                    color = Color(0xFF777777),
+                                    fontSize = 13.sp
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(18.dp),
+                            colors = searchLocationFieldColors()
+                        )
+                        Button(
+                            onClick = {
+                                if (searchQuery.isNotBlank()) {
+                                    coroutineScope.launch {
+                                        searchLocationByName(context, searchQuery)?.let { result ->
+                                            val latLng = LatLng(result.first, result.second)
+                                            selectedLatLng = latLng
+                                            mapInstance?.let { updateMapSelection(it, defaultLatLng, latLng) }
+                                        }
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = SpendAntBlack,
+                                contentColor = SpendAntWhite
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("Go", fontSize = 12.sp)
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = SpendAntWhite,
+                        tonalElevation = 4.dp
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val hasFinePermission = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.ACCESS_FINE_LOCATION
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    val hasCoarsePermission = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    ) == PackageManager.PERMISSION_GRANTED
+
+                                    if (hasFinePermission || hasCoarsePermission) {
+                                        requestCurrentLocation(
+                                            context = context,
+                                            fusedLocationClient = fusedLocationClient,
+                                            onMapClick = { latLng ->
+                                                selectedLatLng = latLng
+                                                mapInstance?.let { updateMapSelection(it, defaultLatLng, latLng) }
+                                            }
+                                        )
+                                    } else {
+                                        locationPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                                Manifest.permission.ACCESS_COARSE_LOCATION
+                                            )
+                                        )
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SpendAntGreen,
+                                    contentColor = SpendAntBlack
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(50.dp),
+                                contentPadding = PaddingValues(vertical = 8.dp)
+                            ) {
+                                Text("Get current location", fontSize = 12.sp)
+                            }
+
+                            Text(
+                                text = if (selectedLatLng == null) "Tap on the map to select a location."
+                                else "Selected: ${"%.5f".format(selectedLatLng!!.latitude)}, ${"%.5f".format(selectedLatLng!!.longitude)}",
+                                color = SpendAntBlack,
+                                fontFamily = SpendAntFontFamily,
+                                fontSize = 11.sp
+                            )
+
+                            Button(
+                                onClick = { selectedLatLng?.let(onConfirm) },
+                                enabled = selectedLatLng != null,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SpendAntBlack,
+                                    contentColor = SpendAntWhite
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(50.dp),
+                                contentPadding = PaddingValues(vertical = 8.dp)
+                            ) {
+                                Text("Save location", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun configureMap(
+    googleMap: GoogleMap,
+    defaultLatLng: LatLng,
+    onMapClick: (LatLng) -> Unit
+) {
+    googleMap.uiSettings.isZoomControlsEnabled = false
+    googleMap.uiSettings.isCompassEnabled = true
+    googleMap.uiSettings.isMyLocationButtonEnabled = false
+    googleMap.moveCamera(
+        CameraUpdateFactory.newLatLngZoom(defaultLatLng, 10f)
+    )
+    googleMap.setOnMapClickListener { latLng ->
+        googleMap.clear()
+        googleMap.addMarker(
+            com.google.android.gms.maps.model.MarkerOptions()
+                .position(latLng)
+                .title("Expense location")
+        )
+        googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+        onMapClick(latLng)
+    }
+}
+
+private fun updateMapSelection(
+    googleMap: GoogleMap,
+    defaultLatLng: LatLng,
+    selectedLatLng: LatLng?
+) {
+    googleMap.clear()
+    val markerLatLng = selectedLatLng ?: defaultLatLng
+    if (selectedLatLng != null) {
+        googleMap.addMarker(
+            com.google.android.gms.maps.model.MarkerOptions()
+                .position(selectedLatLng)
+                .title("Expense location")
+        )
+    }
+    googleMap.moveCamera(
+        CameraUpdateFactory.newLatLngZoom(
+            markerLatLng,
+            if (selectedLatLng != null) 15f else 10f
+        )
+    )
+}
+
+private fun requestCurrentLocation(
+    context: android.content.Context,
+    fusedLocationClient: com.google.android.gms.location.FusedLocationProviderClient,
+    onMapClick: (LatLng) -> Unit
+) {
+    val hasFinePermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    val hasCoarsePermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!hasFinePermission && !hasCoarsePermission) return
+
+    fusedLocationClient
+        .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
+        .addOnSuccessListener { location ->
+            location?.let {
+                onMapClick(LatLng(it.latitude, it.longitude))
+            }
+        }
+}
+
+@Composable
+private fun ExpenseMetaPickerRow(
+    iconRes: Int,
+    label: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFE2F8E4))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = label,
+                tint = SpendAntBlack,
+                modifier = Modifier.size(18.dp)
+            )
+            Column {
+                Text(
+                    text = label,
+                    color = Color(0xFF6D6D6D),
+                    fontSize = 13.sp,
+                    fontFamily = SpendAntFontFamily
+                )
+                Text(
+                    text = value,
+                    color = SpendAntBlack,
+                    fontSize = 16.sp,
+                    fontFamily = SpendAntFontFamily,
+                    fontWeight = FontWeight.Normal
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(SpendAntBlack)
+        )
+    }
+}
+
+@Composable
+private fun InlineLoading(text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(14.dp),
+            strokeWidth = 2.dp,
+            color = SpendAntGreen
+        )
+        Text(text, fontSize = 13.sp, color = SpendAntBlack)
+    }
+}
+
+@Composable
+private fun TopBar(
+    title: String,
+    onClose: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SpendAntGreen)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Close",
+                tint = SpendAntBlack
+            )
+        }
+        Text(
+            text = title,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = SpendAntFontFamily,
+            color = SpendAntBlack,
+            modifier = Modifier.align(Alignment.Center)
+        )
+        IconButton(
+            onClick = onConfirm,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Save",
+                tint = SpendAntBlack
+            )
+        }
+    }
+}
+
+@Composable
 private fun ReceiptOptionButton(
     iconRes: Int,
     label: String,
@@ -604,4 +991,177 @@ private fun ReceiptOptionButton(
             fontWeight = FontWeight.SemiBold
         )
     }
+}
+
+@Composable
+private fun expenseEntryFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Color.Transparent,
+    unfocusedBorderColor = Color.Transparent,
+    disabledBorderColor = Color.Transparent,
+    errorBorderColor = Color.Transparent,
+    focusedContainerColor = Color(0xFFE2F8E4),
+    unfocusedContainerColor = Color(0xFFE2F8E4),
+    disabledContainerColor = Color(0xFFE2F8E4),
+    focusedTextColor = SpendAntBlack,
+    unfocusedTextColor = SpendAntBlack,
+    focusedPlaceholderColor = Color(0xFF6D6D6D),
+    unfocusedPlaceholderColor = Color(0xFF6D6D6D),
+    cursorColor = SpendAntBlack
+)
+
+@Composable
+private fun searchLocationFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = SpendAntGreen,
+    unfocusedBorderColor = SpendAntGreen,
+    focusedContainerColor = SpendAntWhite,
+    unfocusedContainerColor = SpendAntWhite,
+    disabledContainerColor = SpendAntWhite,
+    focusedTextColor = SpendAntBlack,
+    unfocusedTextColor = SpendAntBlack,
+    focusedPlaceholderColor = Color(0xFF777777),
+    unfocusedPlaceholderColor = Color(0xFF777777),
+    cursorColor = SpendAntBlack
+)
+
+@Composable
+private fun spendAntTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = SpendAntGreen,
+    unfocusedBorderColor = Color(0xFFE0E0E0),
+    focusedTextColor = SpendAntBlack,
+    unfocusedTextColor = SpendAntBlack,
+    focusedPlaceholderColor = SpendAntBlack,
+    unfocusedPlaceholderColor = SpendAntBlack,
+    cursorColor = SpendAntBlack
+)
+
+private fun showDatePicker(
+    context: android.content.Context,
+    initialDate: String,
+    onDateSelected: (Long) -> Unit
+) {
+    val calendar = Calendar.getInstance()
+    parseDateMillis(initialDate)?.let { calendar.timeInMillis = it }
+    DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            Calendar.getInstance().apply {
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis.let(onDateSelected)
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    ).show()
+}
+
+private fun showTimePicker(
+    context: android.content.Context,
+    initialTime: String,
+    onTimeSelected: (Int, Int) -> Unit
+) {
+    val calendar = Calendar.getInstance()
+    parseTime(initialTime)?.let {
+        calendar.set(Calendar.HOUR_OF_DAY, it.first)
+        calendar.set(Calendar.MINUTE, it.second)
+    }
+    TimePickerDialog(
+        context,
+        { _, hourOfDay, minute ->
+            onTimeSelected(hourOfDay, minute)
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        false
+    ).show()
+}
+
+private fun parseDateMillis(dateText: String): Long? {
+    return try {
+        SimpleDateFormat("MM/dd/yyyy", Locale.getDefault()).parse(dateText)?.time
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun parseTime(timeText: String): Pair<Int, Int>? {
+    return try {
+        val parsed = SimpleDateFormat("hh:mma", Locale.getDefault()).parse(timeText) ?: return null
+        val calendar = Calendar.getInstance().apply { time = parsed }
+        calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private suspend fun searchLocationByName(
+    context: android.content.Context,
+    query: String
+): Pair<Double, Double>? {
+    return try {
+        val geocoder = Geocoder(context, Locale.getDefault())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            suspendCancellableCoroutine { continuation ->
+                geocoder.getFromLocationName(query, 1) { addresses ->
+                    val address = addresses.firstOrNull()
+                    continuation.resume(
+                        if (address != null) address.latitude to address.longitude else null
+                    )
+                }
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            geocoder.getFromLocationName(query, 1)
+                ?.firstOrNull()
+                ?.let { it.latitude to it.longitude }
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+@Composable
+private fun rememberMapViewWithLifecycle(): MapView {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val mapView = remember {
+        MapView(context).apply {
+            onCreate(Bundle())
+        }
+    }
+
+    DisposableEffect(lifecycle, mapView) {
+        val observer = object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                mapView.onStart()
+            }
+
+            override fun onResume(owner: LifecycleOwner) {
+                mapView.onResume()
+            }
+
+            override fun onPause(owner: LifecycleOwner) {
+                mapView.onPause()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                mapView.onStop()
+            }
+
+            override fun onDestroy(owner: LifecycleOwner) {
+                mapView.onDestroy()
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+        }
+    }
+
+    return mapView
 }

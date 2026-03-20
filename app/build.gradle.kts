@@ -16,6 +16,7 @@ val localProperties = Properties().apply {
 }
 
 val pineconeApiKey = localProperties.getProperty("pinecone.api.key", "")
+val mapsApiKey = localProperties.getProperty("MAPS_API_KEY", "")
 
 android {
     namespace = "com.example.spendantt"
@@ -28,6 +29,8 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "PINECONE_API_KEY", "\"$pineconeApiKey\"")
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -87,6 +90,8 @@ dependencies {
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
