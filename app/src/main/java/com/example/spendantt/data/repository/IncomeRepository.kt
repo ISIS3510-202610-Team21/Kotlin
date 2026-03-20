@@ -18,7 +18,7 @@ class IncomeRepository(
 ) {
     private val syncScope = CoroutineScope(Dispatchers.IO)
 
-    suspend fun insertIncome(income: IncomeEntity): Result<Long> {
+    suspend fun insertIncome(income: IncomeEntity, firebaseUid: String? = null): Result<Long> {
         return try {
             val incomeToSave = if (income.type == IncomeType.FREQUENTLY) {
                 income.copy(
@@ -33,7 +33,7 @@ class IncomeRepository(
             }
 
             val id = incomeDao.insertIncome(incomeToSave)
-            syncIncomeToFirestoreAsync(incomeToSave.copy(id = id.toInt()))
+            syncIncomeToFirestoreAsync(incomeToSave.copy(id = id.toInt()), firebaseUid)
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -46,34 +46,39 @@ class IncomeRepository(
     fun getTotalIncome(userId: Int): Flow<Double?> =
         incomeDao.getTotalIncome(userId)
 
-    suspend fun updateIncome(income: IncomeEntity): Result<Unit> {
+    suspend fun updateIncome(income: IncomeEntity, firebaseUid: String? = null): Result<Unit> {
         return try {
             incomeDao.updateIncome(income)
-            syncIncomeToFirestoreAsync(income)
+            syncIncomeToFirestoreAsync(income, firebaseUid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun deleteIncome(income: IncomeEntity): Result<Unit> {
+    suspend fun deleteIncome(income: IncomeEntity, firebaseUid: String? = null): Result<Unit> {
         return try {
             incomeDao.deleteIncome(income)
-            firestore.collection("incomes")
-                .document("${income.userId}_${income.id}")
-                .delete()
-                .await()
+            if (firebaseUid != null) {
+                firestore.collection("incomes")
+                    .document("${firebaseUid}_${income.id}")
+                    .delete()
+                    .await()
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private fun syncIncomeToFirestoreAsync(income: IncomeEntity) {
+    private fun syncIncomeToFirestoreAsync(income: IncomeEntity, firebaseUid: String?) {
+        if (firebaseUid == null) return
+
         syncScope.launch {
             try {
                 val data = mapOf(
                     "id" to income.id,
+                    "firebaseUid" to firebaseUid,
                     "userId" to income.userId,
                     "name" to income.name,
                     "amount" to income.amount,
@@ -85,11 +90,11 @@ class IncomeRepository(
                     "createdAt" to income.createdAt
                 )
                 firestore.collection("incomes")
-                    .document("${income.userId}_${income.id}")
+                    .document("${firebaseUid}_${income.id}")
                     .set(data)
                     .await()
             } catch (_: Exception) {
-                // Room already has the source of truth.
+                // Room remains the source of truth if Firestore sync fails.
             }
         }
     }

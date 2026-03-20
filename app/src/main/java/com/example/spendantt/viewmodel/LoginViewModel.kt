@@ -7,11 +7,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
+import com.example.spendantt.data.service.SyncService
 import kotlinx.coroutines.launch
 
 class LoginViewModel(context: Context) : ViewModel() {
 
     private val userRepository = UserRepository(AppDatabase.getInstance(context).userDao())
+    private val syncService = SyncService(context)
 
     private val _username = mutableStateOf("")
     val username: State<String> = _username
@@ -43,6 +45,12 @@ class LoginViewModel(context: Context) : ViewModel() {
             try {
                 val result = userRepository.login(_username.value.trim(), _password.value)
                 result.onSuccess { user ->
+                    launch {
+                        val firebaseUid = user.firebaseUid
+                        if (firebaseUid != null) {
+                            syncService.syncUserData(firebaseUid, user.id)
+                        }
+                    }
                     _isLoading.value = false
                     onSuccess(user.id)
                 }.onFailure { exception ->

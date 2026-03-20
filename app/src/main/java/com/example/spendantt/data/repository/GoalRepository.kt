@@ -15,26 +15,21 @@ class GoalRepository(
 ) {
     private val syncScope = CoroutineScope(Dispatchers.IO)
 
-    suspend fun insertGoal(goal: GoalEntity): Result<Long> {
+    suspend fun insertGoal(goal: GoalEntity, firebaseUid: String? = null): Result<Long> {
         return try {
             val id = goalDao.insertGoal(goal)
-            syncGoalToFirestoreAsync(goal.copy(id = id.toInt()))
+            syncGoalToFirestoreAsync(goal.copy(id = id.toInt()), firebaseUid)
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    fun getGoalsByUser(userId: Int): Flow<List<GoalEntity>> =
-        goalDao.getGoalsByUser(userId)
+    fun getGoalsByUser(userId: Int): Flow<List<GoalEntity>> = goalDao.getGoalsByUser(userId)
+    fun getActiveGoals(userId: Int): Flow<List<GoalEntity>> = goalDao.getActiveGoals(userId)
+    suspend fun getGoalById(goalId: Int): GoalEntity? = goalDao.getGoalById(goalId)
 
-    fun getActiveGoals(userId: Int): Flow<List<GoalEntity>> =
-        goalDao.getActiveGoals(userId)
-
-    suspend fun getGoalById(goalId: Int): GoalEntity? =
-        goalDao.getGoalById(goalId)
-
-    suspend fun addProgress(goalId: Int, amount: Double): Result<Unit> {
+    suspend fun addProgress(goalId: Int, amount: Double, firebaseUid: String? = null): Result<Unit> {
         return try {
             val goal = goalDao.getGoalById(goalId)
                 ?: return Result.failure(Exception("Meta no encontrada"))
@@ -46,41 +41,52 @@ class GoalRepository(
                 goalDao.markAsCompleted(goalId)
             }
 
-            syncGoalToFirestoreAsync(goal.copy(currentAmount = newAmount))
+            syncGoalToFirestoreAsync(
+                goal.copy(
+                    currentAmount = newAmount,
+                    isCompleted = newAmount >= goal.targetAmount
+                ),
+                firebaseUid
+            )
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun updateGoal(goal: GoalEntity): Result<Unit> {
+    suspend fun updateGoal(goal: GoalEntity, firebaseUid: String? = null): Result<Unit> {
         return try {
             goalDao.updateGoal(goal)
-            syncGoalToFirestoreAsync(goal)
+            syncGoalToFirestoreAsync(goal, firebaseUid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun deleteGoal(goal: GoalEntity): Result<Unit> {
+    suspend fun deleteGoal(goal: GoalEntity, firebaseUid: String? = null): Result<Unit> {
         return try {
             goalDao.deleteGoal(goal)
-            firestore.collection("goals")
-                .document("${goal.userId}_${goal.id}")
-                .delete()
-                .await()
+            if (firebaseUid != null) {
+                firestore.collection("goals")
+                    .document("${firebaseUid}_${goal.id}")
+                    .delete()
+                    .await()
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private fun syncGoalToFirestoreAsync(goal: GoalEntity) {
+    private fun syncGoalToFirestoreAsync(goal: GoalEntity, firebaseUid: String?) {
+        if (firebaseUid == null) return
+
         syncScope.launch {
             try {
                 val data = mapOf(
                     "id" to goal.id,
+                    "firebaseUid" to firebaseUid,
                     "userId" to goal.userId,
                     "name" to goal.name,
                     "targetAmount" to goal.targetAmount,
@@ -89,12 +95,13 @@ class GoalRepository(
                     "isCompleted" to goal.isCompleted,
                     "createdAt" to goal.createdAt
                 )
+
                 firestore.collection("goals")
-                    .document("${goal.userId}_${goal.id}")
+                    .document("${firebaseUid}_${goal.id}")
                     .set(data)
                     .await()
             } catch (_: Exception) {
-                // Room already has the source of truth.
+                // Room remains the source of truth if Firestore sync fails.
             }
         }
     }

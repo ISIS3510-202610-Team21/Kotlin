@@ -23,7 +23,8 @@ class ExpenseRepository(
 
     suspend fun insertExpense(
         expense: ExpenseEntity,
-        labelIds: List<Int> = emptyList()
+        labelIds: List<Int> = emptyList(),
+        firebaseUid: String? = null
     ): Result<Long> {
         return try {
             val expenseToSave = if (expense.isRecurring) {
@@ -44,28 +45,30 @@ class ExpenseRepository(
                     ExpenseLabelCrossRef(expenseId.toInt(), labelId)
                 )
             }
-            syncExpenseToFirestoreAsync(expenseToSave.copy(id = expenseId.toInt()))
+
+            val labelNames = labelIds.mapNotNull { labelDao.getLabelById(it)?.name }
+            syncExpenseToFirestoreAsync(
+                expense = expenseToSave.copy(id = expenseId.toInt()),
+                labelNames = labelNames,
+                firebaseUid = firebaseUid
+            )
+
             Result.success(expenseId)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun processDueRecurringExpenses(userId: Int): Result<Int> {
+    suspend fun processDueRecurringExpenses(userId: Int, firebaseUid: String? = null): Result<Int> {
         return try {
             val now = System.currentTimeMillis()
             val dueExpenses = expenseDao.getDueRecurringExpenses(userId, now)
             var generated = 0
 
             dueExpenses.forEach { template ->
-                val newExpense = template.copy(
-                    id = 0,
-                    date = now,
-                    createdAt = now,
-                    nextOccurrenceDate = null
-                )
+                val newExpense = template.copy(id = 0, date = now, createdAt = now, nextOccurrenceDate = null)
                 val newId = expenseDao.insertExpense(newExpense)
-                syncExpenseToFirestoreAsync(newExpense.copy(id = newId.toInt()))
+                syncExpenseToFirestoreAsync(newExpense.copy(id = newId.toInt()), emptyList(), firebaseUid)
 
                 val nextDate = calculateNextOccurrence(
                     from = template.nextOccurrenceDate ?: now,
@@ -99,45 +102,49 @@ class ExpenseRepository(
 
     suspend fun updateExpense(
         expense: ExpenseEntity,
-        newLabelIds: List<Int> = emptyList()
+        newLabelIds: List<Int> = emptyList(),
+        firebaseUid: String? = null
     ): Result<Unit> {
         return try {
             expenseDao.updateExpense(expense)
             expenseDao.deleteExpenseLabels(expense.id)
             newLabelIds.forEach { labelId ->
-                expenseDao.insertExpenseLabelCrossRef(
-                    ExpenseLabelCrossRef(expense.id, labelId)
-                )
+                expenseDao.insertExpenseLabelCrossRef(ExpenseLabelCrossRef(expense.id, labelId))
             }
-            syncExpenseToFirestoreAsync(expense)
+            val labelNames = newLabelIds.mapNotNull { labelDao.getLabelById(it)?.name }
+            syncExpenseToFirestoreAsync(expense, labelNames, firebaseUid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun categorizeExpense(expenseId: Int, labelId: Int): Result<Unit> {
+    suspend fun categorizeExpense(expenseId: Int, labelId: Int, firebaseUid: String? = null): Result<Unit> {
         return try {
             val expenseWithLabels = expenseDao.getExpenseWithLabels(expenseId)
                 ?: return Result.failure(Exception("Gasto no encontrado"))
             val updated = expenseWithLabels.expense.copy(isPendingCategory = false)
             expenseDao.updateExpense(updated)
             expenseDao.insertExpenseLabelCrossRef(ExpenseLabelCrossRef(expenseId, labelId))
-            syncExpenseToFirestoreAsync(updated)
+            val allLabels = expenseDao.getExpenseWithLabels(expenseId)?.labels ?: emptyList()
+            val labelNames = allLabels.map { it.name }
+            syncExpenseToFirestoreAsync(updated, labelNames, firebaseUid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun deleteExpense(expense: ExpenseEntity): Result<Unit> {
+    suspend fun deleteExpense(expense: ExpenseEntity, firebaseUid: String? = null): Result<Unit> {
         return try {
             expenseDao.deleteExpenseLabels(expense.id)
             expenseDao.deleteExpense(expense)
-            firestore.collection("expenses")
-                .document("${expense.userId}_${expense.id}")
-                .delete()
-                .await()
+            if (firebaseUid != null) {
+                firestore.collection("expenses")
+                    .document("${firebaseUid}_${expense.id}")
+                    .delete()
+                    .await()
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -148,11 +155,18 @@ class ExpenseRepository(
     fun getTotalSpentInRange(userId: Int, from: Long, to: Long): Flow<Double?> =
         expenseDao.getTotalSpentInRange(userId, from, to)
 
-    private fun syncExpenseToFirestoreAsync(expense: ExpenseEntity) {
+    private fun syncExpenseToFirestoreAsync(
+        expense: ExpenseEntity,
+        labelNames: List<String>,
+        firebaseUid: String?
+    ) {
+        if (firebaseUid == null) return
+
         syncScope.launch {
             try {
                 val data = mapOf(
                     "id" to expense.id,
+                    "firebaseUid" to firebaseUid,
                     "userId" to expense.userId,
                     "name" to expense.name,
                     "amount" to expense.amount,
@@ -168,14 +182,15 @@ class ExpenseRepository(
                     "recurrenceInterval" to expense.recurrenceInterval,
                     "recurrenceUnit" to expense.recurrenceUnit?.name,
                     "nextOccurrenceDate" to expense.nextOccurrenceDate,
-                    "createdAt" to expense.createdAt
+                    "createdAt" to expense.createdAt,
+                    "labelNames" to labelNames
                 )
                 firestore.collection("expenses")
-                    .document("${expense.userId}_${expense.id}")
+                    .document("${firebaseUid}_${expense.id}")
                     .set(data)
                     .await()
             } catch (_: Exception) {
-                // Room already has the source of truth.
+                // Room remains the source of truth if Firestore sync fails.
             }
         }
     }
