@@ -10,7 +10,9 @@ import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.data.repository.NotificationRepository
+import com.example.spendantt.data.repository.SpendingHistoryRepository
 import com.example.spendantt.util.DailyFinanceCalculator
+import com.example.spendantt.util.SpendingAnomalyCalculator
 import kotlinx.coroutines.flow.first
 import java.text.DecimalFormat
 import java.util.Calendar
@@ -31,7 +33,9 @@ class NotificationSyncWorker(
             val goalRepository = GoalRepository(database.goalDao())
             val incomeRepository = IncomeRepository(database.incomeDao())
             val notificationRepository = NotificationRepository(applicationContext)
+            val spendingHistoryRepository = SpendingHistoryRepository(applicationContext)
             val goalPreferences = GoalPreferences(applicationContext)
+            val user = database.userDao().getUserById(userId)
 
             val now = System.currentTimeMillis()
             val expenses = expenseRepository.getExpensesWithLabels(userId).first()
@@ -42,6 +46,21 @@ class NotificationSyncWorker(
             val todayExpenses = DailyFinanceCalculator.calculateTodayExpenses(expenses, now)
             val todayKey = startOfTodayMillis(now)
             notificationRepository.pruneFutureDailyNotifications(userId, todayKey)
+            syncWelcomeNotification(
+                notificationRepository = notificationRepository,
+                userId = userId,
+                allGoals = allGoals,
+                totalDailyIncome = totalDailyIncome,
+                expenses = expenses
+            )
+            syncSpendingAnomalyNotification(
+                notificationRepository = notificationRepository,
+                spendingHistoryRepository = spendingHistoryRepository,
+                userId = userId,
+                expenses = expenses,
+                userCreatedAt = user?.createdAt ?: now,
+                now = now
+            )
             val selectedGoalId = goalPreferences.getSelectedGoalId(userId)
             val activeGoals = allGoals.filter { goal ->
                 val currentAmount = DailyFinanceCalculator.calculateDynamicGoalAmount(
@@ -55,7 +74,9 @@ class NotificationSyncWorker(
                 currentAmount + 0.0001 < goal.targetAmount
             }
 
-            if (DailyFinanceCalculator.isDailyBudgetExceeded(totalDailyIncome, activeGoals, todayExpenses)) {
+            if (totalDailyIncome > 0.0 &&
+                DailyFinanceCalculator.isDailyBudgetExceeded(totalDailyIncome, activeGoals, todayExpenses)
+            ) {
                 val currency = DecimalFormat("#,##0").format(todayExpenses)
                 notificationRepository.upsertDailyNotification(
                     userId = userId,
@@ -107,6 +128,86 @@ class NotificationSyncWorker(
         } catch (e: Exception) {
             Result.retry()
         }
+    }
+
+    private fun syncWelcomeNotification(
+        notificationRepository: NotificationRepository,
+        userId: Int,
+        allGoals: List<GoalEntity>,
+        totalDailyIncome: Double,
+        expenses: List<com.example.spendantt.data.local.entity.ExpenseWithLabels>
+    ) {
+        if (totalDailyIncome <= 0.0 && expenses.isEmpty() && allGoals.isEmpty()) {
+            notificationRepository.upsertNotification(
+                userId = userId,
+                notificationId = "welcome_$userId",
+                type = "welcome",
+                title = "Welcome to SpendAnt",
+                body = "Thanks for using SpendAnt. Start by adding your income and goals."
+            )
+        }
+    }
+
+    private fun syncSpendingAnomalyNotification(
+        notificationRepository: NotificationRepository,
+        spendingHistoryRepository: SpendingHistoryRepository,
+        userId: Int,
+        expenses: List<com.example.spendantt.data.local.entity.ExpenseWithLabels>,
+        userCreatedAt: Long,
+        now: Long
+    ) {
+        if (!hasMinimumAccountAgeForSpendingAnomaly(userCreatedAt, now)) {
+            val yesterdayStart = startOfTodayMillis(now) - ONE_DAY_MILLIS
+            notificationRepository.removeDailyNotification(
+                userId = userId,
+                type = "spending_anomaly",
+                dayStart = yesterdayStart
+            )
+            return
+        }
+
+        val todayStart = startOfTodayMillis(now)
+        val recentClosedDays = (1..6).map { dayOffset ->
+            val dayStart = todayStart - (dayOffset * ONE_DAY_MILLIS)
+            val dayEndExclusive = dayStart + ONE_DAY_MILLIS
+            com.example.spendantt.data.repository.DailyExpenseTotal(
+                dayStart = dayStart,
+                totalExpense = SpendingAnomalyCalculator.sumExpensesForDay(
+                    expenses = expenses,
+                    dayStart = dayStart,
+                    dayEndExclusive = dayEndExclusive
+                )
+            )
+        }
+
+        spendingHistoryRepository.saveRecentClosedDays(userId, recentClosedDays)
+
+        val analyzedDay = recentClosedDays.firstOrNull() ?: return
+        val baseline = recentClosedDays.drop(1).take(5)
+        val stats = SpendingAnomalyCalculator.calculateStats(baseline)
+
+        if (stats != null && SpendingAnomalyCalculator.isAnomalous(analyzedDay.totalExpense, stats)) {
+            notificationRepository.upsertDailyNotification(
+                userId = userId,
+                type = "spending_anomaly",
+                dayStart = analyzedDay.dayStart,
+                title = "Spending anomaly detected",
+                body = "Yesterday you spent more than expected. Be careful with your spending."
+            )
+        } else {
+            notificationRepository.removeDailyNotification(
+                userId = userId,
+                type = "spending_anomaly",
+                dayStart = analyzedDay.dayStart
+            )
+        }
+    }
+
+    private fun hasMinimumAccountAgeForSpendingAnomaly(userCreatedAt: Long, now: Long): Boolean {
+        val accountStart = startOfTodayMillis(userCreatedAt)
+        val todayStart = startOfTodayMillis(now)
+        val ageInDays = ((todayStart - accountStart) / ONE_DAY_MILLIS).coerceAtLeast(0L)
+        return ageInDays >= 5L
     }
 
     private fun syncGoalCompletedNotification(
@@ -164,5 +265,6 @@ class NotificationSyncWorker(
     companion object {
         private const val AUTH_PREFS_NAME = "auth_prefs"
         private const val KEY_LAST_USER_ID = "last_user_id"
+        private const val ONE_DAY_MILLIS = 24L * 60L * 60L * 1000L
     }
 }
