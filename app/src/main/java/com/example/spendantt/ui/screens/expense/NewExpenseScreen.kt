@@ -167,7 +167,10 @@ private fun NewExpenseFormContent(
     var showReceiptOptions by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSaved) {
-        if (uiState.isSaved) onSaved()
+        if (uiState.isSaved) {
+            viewModel.consumeSaved()
+            onSaved()
+        }
     }
 
     val cameraLauncher = rememberLauncherForActivityResult(

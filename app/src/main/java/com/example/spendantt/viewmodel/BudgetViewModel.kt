@@ -35,7 +35,7 @@ data class NewIncomeFormState(
 class BudgetViewModel(
     private val incomeRepository: IncomeRepository,
     private val userId: Int,
-    private val firebaseUid: String? = null  // ← NUEVO
+    private val firebaseUid: String? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BudgetUiState())
@@ -111,7 +111,7 @@ class BudgetViewModel(
         }
         val parsedAmount = form.amount.replace(",", "").toDoubleOrNull()
         if (parsedAmount == null || parsedAmount <= 0) {
-            _formState.value = _formState.value.copy(amountError = "Ingresa un monto válido")
+            _formState.value = _formState.value.copy(amountError = "Ingresa un monto valido")
             hasError = true
         }
         if (hasError) return
@@ -119,32 +119,35 @@ class BudgetViewModel(
         _formState.value = _formState.value.copy(isSubmitting = true)
 
         viewModelScope.launch {
-            val income = IncomeEntity(
-                userId = userId,
-                name = form.name.trim(),
-                amount = parsedAmount!!,
-                type = form.incomeType,
-                recurrenceInterval = if (form.incomeType == IncomeType.FREQUENTLY)
-                    form.recurrenceInterval.toIntOrNull() ?: 1 else null,
-                recurrenceUnit = if (form.incomeType == IncomeType.FREQUENTLY)
-                    form.recurrenceUnit else null,
-                startDate = form.startDate
-            )
+            try {
+                val income = IncomeEntity(
+                    userId = userId,
+                    name = form.name.trim(),
+                    amount = parsedAmount!!,
+                    type = form.incomeType,
+                    recurrenceInterval = if (form.incomeType == IncomeType.FREQUENTLY)
+                        form.recurrenceInterval.toIntOrNull() ?: 1 else null,
+                    recurrenceUnit = if (form.incomeType == IncomeType.FREQUENTLY)
+                        form.recurrenceUnit else null,
+                    startDate = form.startDate
+                )
 
-            // Pasar firebaseUid para sincronizar con Firestore
-            val result = incomeRepository.insertIncome(income, firebaseUid)
-            _formState.value = _formState.value.copy(isSubmitting = false)
-
-            result.fold(
-                onSuccess = {
-                    resetForm()
-                    _uiState.value = _uiState.value.copy(successMessage = "Ingreso guardado")
-                    onSuccess()
-                },
-                onFailure = { e ->
-                    _uiState.value = _uiState.value.copy(errorMessage = e.message)
-                }
-            )
+                val result = incomeRepository.insertIncome(income, firebaseUid)
+                result.fold(
+                    onSuccess = {
+                        resetForm()
+                        _uiState.value = _uiState.value.copy(successMessage = "Ingreso guardado")
+                        onSuccess()
+                    },
+                    onFailure = { e ->
+                        _uiState.value = _uiState.value.copy(errorMessage = e.message)
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message ?: "Error al guardar ingreso")
+            } finally {
+                _formState.value = _formState.value.copy(isSubmitting = false)
+            }
         }
     }
 

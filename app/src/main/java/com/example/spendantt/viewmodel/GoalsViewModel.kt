@@ -11,6 +11,7 @@ import com.example.spendantt.data.preferences.GoalPreferences
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
+import com.example.spendantt.data.repository.NotificationRepository
 import com.example.spendantt.util.DailyFinanceCalculator
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -23,19 +24,21 @@ data class GoalListItemUiState(
     val deadline: Long,
     val dailyAmount: Double,
     val progressPercent: Int,
-    val isSelected: Boolean
+    val isSelected: Boolean,
+    val isCompleted: Boolean
 )
 
 class GoalsViewModel(
     context: Context,
     private val userId: Int,
-    private val firebaseUid: String? = null  // ← NUEVO
+    private val firebaseUid: String? = null
 ) : ViewModel() {
     private val database = AppDatabase.getInstance(context)
     private val expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
     private val repository = GoalRepository(database.goalDao())
     private val incomeRepository = IncomeRepository(database.incomeDao())
     private val preferences = GoalPreferences(context)
+    private val notificationRepository = NotificationRepository(context)
 
     private val _goals = mutableStateOf<List<GoalListItemUiState>>(emptyList())
     val goals: State<List<GoalListItemUiState>> = _goals
@@ -45,6 +48,9 @@ class GoalsViewModel(
 
     private val _isLoading = mutableStateOf(true)
     val isLoading: State<Boolean> = _isLoading
+
+    private val _isSavingGoal = mutableStateOf(false)
+    val isSavingGoal: State<Boolean> = _isSavingGoal
 
     private val _goalLimitError = mutableStateOf<String?>(null)
     val goalLimitError: State<String?> = _goalLimitError
@@ -69,69 +75,92 @@ class GoalsViewModel(
     }
 
     suspend fun saveGoal(name: String, targetAmount: Double, deadline: Long, dailyAmount: Double): String? {
-        val createdAt = startOfTodayMillis()
-        val incomes = incomeRepository.getIncomesByUser(userId).first()
-        val existingGoals = repository.getGoalsByUser(userId).first()
+        _isSavingGoal.value = true
+        return try {
+            val createdAt = startOfTodayMillis()
+            val incomes = incomeRepository.getIncomesByUser(userId).first()
+            val existingGoals = repository.getGoalsByUser(userId).first()
 
-        val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
-        val existingDailyGoals = DailyFinanceCalculator.sumDailyGoals(existingGoals)
+            val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
+            val existingDailyGoals = DailyFinanceCalculator.sumDailyGoals(existingGoals)
 
-        if (totalDailyIncome <= 0.0) {
-            val message = "You need at least one income before creating a goal."
+            if (totalDailyIncome <= 0.0) {
+                val message = "You need at least one income before creating a goal."
+                _goalLimitError.value = message
+                return message
+            }
+
+            if (dailyAmount > totalDailyIncome) {
+                val message = "This goal needs more daily savings than your daily income allows."
+                _goalLimitError.value = message
+                return message
+            }
+
+            if (existingDailyGoals + dailyAmount > totalDailyIncome) {
+                val message = "Your goals together cannot exceed your total daily income."
+                _goalLimitError.value = message
+                return message
+            }
+
+            val result = repository.insertGoal(
+                goal = GoalEntity(
+                    userId = userId,
+                    name = name,
+                    targetAmount = targetAmount,
+                    currentAmount = 0.0,
+                    deadline = deadline,
+                    createdAt = createdAt,
+                    isCompleted = false
+                ),
+                firebaseUid = firebaseUid
+            )
+
+            val newGoalId = result.getOrNull()?.toInt()
+            if (newGoalId == null) {
+                val message = result.exceptionOrNull()?.message ?: "Could not save goal."
+                _goalLimitError.value = message
+                return message
+            }
+
+            if (_goals.value.isEmpty() || preferences.getSelectedGoalId(userId) == null) {
+                preferences.setSelectedGoalId(userId, newGoalId)
+            }
+            _goalLimitError.value = null
+            _isCreatingGoal.value = false
+            _isLoading.value = false
+            null
+        } catch (e: Exception) {
+            val message = e.message ?: "Could not save goal."
             _goalLimitError.value = message
-            return message
+            message
+        } finally {
+            _isSavingGoal.value = false
         }
-
-        if (dailyAmount > totalDailyIncome) {
-            val message = "This goal needs more daily savings than your daily income allows."
-            _goalLimitError.value = message
-            return message
-        }
-
-        if (existingDailyGoals + dailyAmount > totalDailyIncome) {
-            val message = "Your goals together cannot exceed your total daily income."
-            _goalLimitError.value = message
-            return message
-        }
-
-        // Pasar firebaseUid para sincronizar con Firestore
-        val result = repository.insertGoal(
-            goal = GoalEntity(
-                userId = userId,
-                name = name,
-                targetAmount = targetAmount,
-                currentAmount = 0.0,
-                deadline = deadline,
-                createdAt = createdAt,
-                isCompleted = false
-            ),
-            firebaseUid = firebaseUid
-        )
-
-        val newGoalId = result.getOrNull()?.toInt()
-        if (newGoalId == null) {
-            val message = result.exceptionOrNull()?.message ?: "Could not save goal."
-            _goalLimitError.value = message
-            return message
-        }
-
-        if (_goals.value.isEmpty() || preferences.getSelectedGoalId(userId) == null) {
-            preferences.setSelectedGoalId(userId, newGoalId)
-        }
-        _goalLimitError.value = null
-        _isCreatingGoal.value = false
-        return null
     }
 
     fun clearGoalLimitError() {
         _goalLimitError.value = null
     }
 
+    fun deleteGoal(goalId: Int) {
+        viewModelScope.launch {
+            val goal = repository.getGoalById(goalId) ?: return@launch
+            repository.deleteGoal(goal, firebaseUid)
+            if (preferences.getSelectedGoalId(userId) == goalId) {
+                preferences.clearSelectedGoalId(userId)
+            }
+            notificationRepository.removeNotification(userId, "goal_half_$goalId")
+            notificationRepository.removeNotification(userId, "goal_completed_$goalId")
+        }
+    }
+
     private fun observeGoals() {
         viewModelScope.launch {
             repository.getGoalsByUser(userId).collectLatest { goals ->
+                val now = System.currentTimeMillis()
                 val incomes = incomeRepository.getIncomesByUser(userId).first()
                 val expenses = expenseRepository.getExpensesWithLabels(userId).first()
+                    .filter { it.expense.date <= now }
                 val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
                 val selectedGoalId = ensureSelectedGoal(goals)
                 _goals.value = goals.map { goal ->
@@ -141,8 +170,10 @@ class GoalsViewModel(
                         allGoals = goals,
                         expenses = expenses,
                         totalDailyIncome = totalDailyIncome,
-                        selectedGoalId = selectedGoalId
+                        selectedGoalId = selectedGoalId,
+                        now = now
                     )
+                    val isCompleted = currentAmount + 0.0001 >= goal.targetAmount
                     goal.copy(currentAmount = currentAmount).let {
                         GoalListItemUiState(
                             id = it.id,
@@ -150,10 +181,14 @@ class GoalsViewModel(
                             deadline = it.deadline,
                             dailyAmount = dailyAmount,
                             progressPercent = DailyFinanceCalculator.calculateGoalProgressPercent(it),
-                            isSelected = it.id == selectedGoalId
+                            isSelected = it.id == selectedGoalId,
+                            isCompleted = isCompleted
                         )
                     }
-                }
+                }.sortedWith(
+                    compareBy<GoalListItemUiState> { it.isCompleted }
+                        .thenBy { it.deadline }
+                )
                 _isLoading.value = false
             }
         }

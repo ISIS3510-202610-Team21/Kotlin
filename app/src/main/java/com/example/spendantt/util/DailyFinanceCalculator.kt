@@ -40,14 +40,14 @@ object DailyFinanceCalculator {
     fun calculateCurrentMonthExpenses(expenses: List<ExpenseWithLabels>, now: Long = System.currentTimeMillis()): Double {
         val monthRange = monthRange(now)
         return expenses
-            .filter { it.expense.date in monthRange.first..monthRange.second }
+            .filter { it.expense.date in monthRange.first..monthRange.second && it.expense.date <= now }
             .sumOf { it.expense.amount }
     }
 
     fun calculateTodayExpenses(expenses: List<ExpenseWithLabels>, now: Long = System.currentTimeMillis()): Double {
         val today = dayRange(now)
         return expenses
-            .filter { it.expense.date in today.first..today.second }
+            .filter { it.expense.date in today.first..today.second && it.expense.date <= now }
             .sumOf { it.expense.amount }
     }
 

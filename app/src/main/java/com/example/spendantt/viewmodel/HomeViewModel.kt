@@ -1,6 +1,7 @@
 package com.example.spendantt.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -53,6 +54,9 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private val _userName = mutableStateOf("")
     val userName: State<String> = _userName
 
+    private val _unreadNotificationsCount = mutableStateOf(0)
+    val unreadNotificationsCount: State<Int> = _unreadNotificationsCount
+
     init {
         database = AppDatabase.getInstance(context)
         expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
@@ -85,28 +89,46 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     fun refreshDailyBudget() {
         viewModelScope.launch {
             try {
+                val now = System.currentTimeMillis()
                 val latestExpenses = expenseRepository.getExpensesWithLabels(userId).first()
+                    .filter { it.expense.date <= now }
                     .sortedByDescending { it.expense.date }
                 _allExpenses.value = latestExpenses
-                _monthlyExpenses.value = DailyFinanceCalculator.calculateCurrentMonthExpenses(latestExpenses)
-                _categoryExpenses.value = calculateCurrentMonthCategoryMap(latestExpenses)
-                recalculateFinancialState(latestExpenses)
+                _monthlyExpenses.value = DailyFinanceCalculator.calculateCurrentMonthExpenses(latestExpenses, now)
+                _categoryExpenses.value = calculateCurrentMonthCategoryMap(latestExpenses, now)
+                notificationRepository.pruneFutureDailyNotifications(userId, startOfTodayMillis(now))
+                recalculateFinancialState(latestExpenses, now)
+                _unreadNotificationsCount.value = notificationRepository.getUnreadCount(userId)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error refreshing home data"
             }
         }
     }
 
+    fun refreshUnreadNotificationsCount() {
+        _unreadNotificationsCount.value = notificationRepository.getUnreadCount(userId)
+        Log.d(TAG, "refreshUnreadNotificationsCount userId=$userId unread=${_unreadNotificationsCount.value}")
+    }
+
+    fun markNotificationsAsRead() {
+        notificationRepository.markAllAsRead(userId)
+        _unreadNotificationsCount.value = 0
+        Log.d(TAG, "markNotificationsAsRead userId=$userId unread=${_unreadNotificationsCount.value}")
+    }
+
     private fun observeExpenses() {
         viewModelScope.launch {
             try {
                 expenseRepository.getExpensesWithLabels(userId).collectLatest { expenses ->
-                    val sortedExpenses = expenses.sortedByDescending { it.expense.date }
+                    val now = System.currentTimeMillis()
+                    val sortedExpenses = expenses
+                        .filter { it.expense.date <= now }
+                        .sortedByDescending { it.expense.date }
                     _allExpenses.value = sortedExpenses
 
-                    val monthRange = getMonthDateRange()
+                    val monthRange = getMonthDateRange(now)
                     val monthlyExpenses = sortedExpenses.filter {
-                        it.expense.date in monthRange.first..monthRange.second
+                        it.expense.date in monthRange.first..monthRange.second && it.expense.date <= now
                     }
                     _monthlyExpenses.value = monthlyExpenses.sumOf { it.expense.amount }
 
@@ -126,6 +148,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                         _monthlyExpenses.value = 600000.0
                     }
                     _categoryExpenses.value = categoryMap
+                    notificationRepository.pruneFutureDailyNotifications(userId, startOfTodayMillis(now))
 
                     _isLoading.value = false
                 }
@@ -139,12 +162,8 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private fun observeGoals() {
         viewModelScope.launch {
             try {
-                goalRepository.getActiveGoals(userId).collectLatest { goals ->
-                    val incomes = incomeRepository.getIncomesByUser(userId).first()
-                    _dailyBudget.value = (
-                        DailyFinanceCalculator.sumDailyIncome(incomes) -
-                            DailyFinanceCalculator.sumDailyGoals(goals)
-                        ).coerceAtLeast(0.0)
+                goalRepository.getGoalsByUser(userId).collectLatest {
+                    refreshDailyBudget()
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error loading goals"
@@ -156,7 +175,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         viewModelScope.launch {
             try {
                 incomeRepository.getIncomesByUser(userId).collectLatest {
-                    recalculateFinancialState(_allExpenses.value)
+                    refreshDailyBudget()
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error loading incomes"
@@ -164,12 +183,27 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         }
     }
 
-    private suspend fun recalculateFinancialState(expenses: List<ExpenseWithLabels>) {
+    private suspend fun recalculateFinancialState(
+        expenses: List<ExpenseWithLabels>,
+        now: Long = System.currentTimeMillis()
+    ) {
         try {
             val incomes = incomeRepository.getIncomesByUser(userId).first()
-            val activeGoals = goalRepository.getActiveGoals(userId).first()
+            val allGoals = goalRepository.getGoalsByUser(userId).first()
             val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
-            val todayExpenses = DailyFinanceCalculator.calculateTodayExpenses(expenses)
+            val todayExpenses = DailyFinanceCalculator.calculateTodayExpenses(expenses, now)
+            val selectedGoalId = goalPreferences.getSelectedGoalId(userId)
+            val activeGoals = allGoals.filter { goal ->
+                val currentAmount = DailyFinanceCalculator.calculateDynamicGoalAmount(
+                    goal = goal,
+                    allGoals = allGoals,
+                    expenses = expenses,
+                    totalDailyIncome = totalDailyIncome,
+                    selectedGoalId = selectedGoalId,
+                    now = now
+                )
+                currentAmount + 0.0001 < goal.targetAmount
+            }
 
             _dailyBudget.value = DailyFinanceCalculator.calculateRemainingDailyBudget(
                 totalDailyIncome = totalDailyIncome,
@@ -178,21 +212,32 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
             ).coerceAtLeast(0.0)
 
             updateNotifications(
+                allGoals = allGoals,
                 activeGoals = activeGoals,
                 totalDailyIncome = totalDailyIncome,
-                todayExpenses = todayExpenses
+                todayExpenses = todayExpenses,
+                expenses = expenses,
+                now = now
+            )
+            _unreadNotificationsCount.value = notificationRepository.getUnreadCount(userId)
+            Log.d(
+                TAG,
+                "recalculateFinancialState userId=$userId todayExpenses=$todayExpenses activeGoals=${activeGoals.size} unread=${_unreadNotificationsCount.value}"
             )
         } catch (e: Exception) {
             _errorMessage.value = e.message ?: "Error recalculating home data"
         }
     }
 
-    private fun calculateCurrentMonthCategoryMap(expenses: List<ExpenseWithLabels>): Map<String, Double> {
-        val monthRange = getMonthDateRange()
+    private fun calculateCurrentMonthCategoryMap(
+        expenses: List<ExpenseWithLabels>,
+        now: Long = System.currentTimeMillis()
+    ): Map<String, Double> {
+        val monthRange = getMonthDateRange(now)
         val categoryMap = mutableMapOf<String, Double>()
 
         expenses
-            .filter { it.expense.date in monthRange.first..monthRange.second }
+            .filter { it.expense.date in monthRange.first..monthRange.second && it.expense.date <= now }
             .forEach { expenseWithLabels ->
                 expenseWithLabels.labels.forEach { label ->
                     categoryMap[label.name] =
@@ -204,12 +249,19 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     }
 
     private fun updateNotifications(
+        allGoals: List<GoalEntity>,
         activeGoals: List<GoalEntity>,
         totalDailyIncome: Double,
-        todayExpenses: Double
+        todayExpenses: Double,
+        expenses: List<ExpenseWithLabels>,
+        now: Long
     ) {
-        val todayKey = startOfTodayMillis()
+        val todayKey = startOfTodayMillis(now)
         val currency = DecimalFormat("#,##0").format(todayExpenses)
+        Log.d(
+            TAG,
+            "updateNotifications userId=$userId day=$todayKey todayExpenses=$todayExpenses activeGoals=${activeGoals.size} totalDailyIncome=$totalDailyIncome"
+        )
 
         if (DailyFinanceCalculator.isDailyBudgetExceeded(totalDailyIncome, activeGoals, todayExpenses)) {
             notificationRepository.upsertDailyNotification(
@@ -255,16 +307,32 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
             )
         }
 
-        activeGoals.forEach { goal ->
-            val selectedGoalId = goalPreferences.getSelectedGoalId(userId)
+        val selectedGoalId = goalPreferences.getSelectedGoalId(userId)
+        allGoals.forEach { goal ->
             val currentAmount = DailyFinanceCalculator.calculateDynamicGoalAmount(
                 goal = goal,
-                allGoals = activeGoals,
-                expenses = _allExpenses.value,
+                allGoals = allGoals,
+                expenses = expenses,
                 totalDailyIncome = totalDailyIncome,
-                selectedGoalId = selectedGoalId
+                selectedGoalId = selectedGoalId,
+                now = now
             )
+            val halfwayNotificationId = "goal_half_${goal.id}"
             val notificationId = "goal_completed_${goal.id}"
+            if (currentAmount + 0.0001 >= goal.targetAmount / 2.0) {
+                notificationRepository.upsertNotification(
+                    userId = userId,
+                    notificationId = halfwayNotificationId,
+                    type = "goal_half",
+                    title = "Halfway there",
+                    body = "Congrats! You're halfway to your goal."
+                )
+            } else {
+                notificationRepository.removeNotification(
+                    userId = userId,
+                    notificationId = halfwayNotificationId
+                )
+            }
             if (currentAmount + 0.0001 >= goal.targetAmount) {
                 notificationRepository.upsertNotification(
                     userId = userId,
@@ -282,8 +350,8 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         }
     }
 
-    private fun getMonthDateRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
+    private fun getMonthDateRange(now: Long = System.currentTimeMillis()): Pair<Long, Long> {
+        val calendar = Calendar.getInstance().apply { timeInMillis = now }
         calendar.set(Calendar.DAY_OF_MONTH, 1)
         calendar.set(Calendar.HOUR_OF_DAY, 0)
         calendar.set(Calendar.MINUTE, 0)
@@ -302,12 +370,17 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         return Pair(firstDay, lastDay)
     }
 
-    private fun startOfTodayMillis(): Long {
+    private fun startOfTodayMillis(now: Long = System.currentTimeMillis()): Long {
         return Calendar.getInstance().apply {
+            timeInMillis = now
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
+    }
+
+    companion object {
+        private const val TAG = "SpendAntHomeNotif"
     }
 }

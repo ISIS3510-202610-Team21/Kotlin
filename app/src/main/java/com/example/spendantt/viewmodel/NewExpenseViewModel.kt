@@ -22,7 +22,8 @@ import java.io.DataOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Locale
 
 data class NewExpenseUiState(
     val name: String = "",
@@ -139,7 +140,7 @@ class NewExpenseViewModel(
                     name = result.name, amount = result.amount,
                     date = result.date, time = result.time, locationName = result.locationName
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
             } finally {
                 _uiState.value = _uiState.value.copy(isProcessingOcr = false)
             }
@@ -152,7 +153,7 @@ class NewExpenseViewModel(
             try {
                 val url = withContext(Dispatchers.IO) { uploadToCloudinary(uri) }
                 _uiState.value = _uiState.value.copy(receiptStorageUrl = url, isUploadingImage = false)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(isUploadingImage = false)
             }
         }
@@ -238,26 +239,41 @@ class NewExpenseViewModel(
                     isPendingCategory = state.selectedLabelIds.isEmpty()
                 )
 
-                val expenseId = repository.insertExpense(expense, state.selectedLabelIds.toList(), firebaseUid)
-                val id = expenseId.getOrNull()?.toInt()
+                val result = repository.insertExpense(expense, state.selectedLabelIds.toList(), firebaseUid)
+                result.fold(
+                    onSuccess = { newExpenseId ->
+                        val id = newExpenseId.toInt()
+                        if (state.selectedLabelIds.isEmpty()) {
+                            val categorized = autoCategorizationService.categorizeExpense(id, name, firebaseUid)
+                            if (!categorized) {
+                                _uiState.value = _uiState.value.copy(
+                                    isSaving = false,
+                                    showLabelPrompt = true,
+                                    pendingExpenseId = id
+                                )
+                                return@fold
+                            }
+                        }
 
-                if (state.selectedLabelIds.isEmpty() && id != null) {
-                    val categorized = autoCategorizationService.categorizeExpense(id, name, firebaseUid)
-                    if (!categorized) {
                         _uiState.value = _uiState.value.copy(
                             isSaving = false,
-                            showLabelPrompt = true,
-                            pendingExpenseId = id
+                            isSaved = true,
+                            showLabelPrompt = false,
+                            pendingExpenseId = null
                         )
-                        return@launch
+                    },
+                    onFailure = { e ->
+                        _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
                     }
-                }
-
-                _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
+    }
+
+    fun consumeSaved() {
+        _uiState.value = _uiState.value.copy(isSaved = false)
     }
 
     fun savePendingLabels() {
@@ -273,11 +289,21 @@ class NewExpenseViewModel(
                     firebaseUid = firebaseUid
                 )
             }
-            _uiState.value = _uiState.value.copy(isSaved = true, showLabelPrompt = false)
+            _uiState.value = _uiState.value.copy(
+                isSaved = true,
+                isSaving = false,
+                showLabelPrompt = false,
+                pendingExpenseId = null
+            )
         }
     }
 
     fun dismissLabelPrompt() {
-        _uiState.value = _uiState.value.copy(isSaved = true, showLabelPrompt = false)
+        _uiState.value = _uiState.value.copy(
+            isSaved = true,
+            isSaving = false,
+            showLabelPrompt = false,
+            pendingExpenseId = null
+        )
     }
 }

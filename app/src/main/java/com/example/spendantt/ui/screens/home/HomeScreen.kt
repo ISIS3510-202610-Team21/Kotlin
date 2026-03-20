@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -78,6 +79,7 @@ fun HomeScreen(
         monthlyExpenses = viewModel.monthlyExpenses.value,
         categoryExpenses = viewModel.categoryExpenses.value,
         allExpenses = viewModel.allExpenses.value,
+        unreadNotificationsCount = viewModel.unreadNotificationsCount.value,
         onNotificationsClick = onNotificationsClick,
         onLogoutClick = onLogoutClick
     )
@@ -90,6 +92,7 @@ private fun HomeScreenContent(
     monthlyExpenses: Double,
     categoryExpenses: Map<String, Double>,
     allExpenses: List<ExpenseWithLabels>,
+    unreadNotificationsCount: Int,
     onNotificationsClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
@@ -141,15 +144,38 @@ private fun HomeScreenContent(
                     .background(SpendAntGreenv2)
                     .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Notifications,
-                    contentDescription = "Notifications",
-                    tint = Color.Black,
+                Box(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .size(24.dp)
                         .clickable(onClick = onNotificationsClick)
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Notifications,
+                        contentDescription = "Notifications",
+                        tint = Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    if (unreadNotificationsCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 8.dp, y = (-6).dp)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(Color.Red),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = unreadNotificationsCount.coerceAtMost(99).toString(),
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.wrapContentSize(Alignment.Center)
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = "Home",
                     fontSize = 20.sp,
@@ -511,7 +537,8 @@ fun HomeScreenPreview() {
             "Services" to 100000.0,
             "Gifts" to 80000.0
         ),
-        allExpenses = allExpenses
+        allExpenses = allExpenses,
+        unreadNotificationsCount = 2
     )
 }
 
