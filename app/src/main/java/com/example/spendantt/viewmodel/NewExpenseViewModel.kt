@@ -1,7 +1,9 @@
 package com.example.spendantt.viewmodel
 
 import android.content.Context
+import android.location.Geocoder
 import android.net.Uri
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
@@ -24,6 +26,9 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class NewExpenseUiState(
     val name: String = "",
@@ -123,7 +128,35 @@ class NewExpenseViewModel(
     }
 
     fun onNameChange(value: String) { _uiState.value = _uiState.value.copy(name = value) }
-    fun onAmountChange(value: String) { _uiState.value = _uiState.value.copy(amount = value) }
+    fun onAmountChange(value: String) {
+        val sanitized = value.filter { it.isDigit() || it == '.' || it == ',' }
+        _uiState.value = _uiState.value.copy(amount = sanitized)
+    }
+
+    fun onDateSelected(timestamp: Long) {
+        val dateFormat = SimpleDateFormat("MM/dd/yyyy", Locale.getDefault())
+        _uiState.value = _uiState.value.copy(date = dateFormat.format(timestamp))
+    }
+
+    fun onTimeSelected(hourOfDay: Int, minute: Int) {
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hourOfDay)
+            set(Calendar.MINUTE, minute)
+        }
+        val timeFormat = SimpleDateFormat("hh:mma", Locale.getDefault())
+        _uiState.value = _uiState.value.copy(time = timeFormat.format(calendar.time))
+    }
+
+    fun onLocationSelected(latitude: Double, longitude: Double) {
+        viewModelScope.launch {
+            val locationName = reverseGeocode(latitude, longitude)
+            _uiState.value = _uiState.value.copy(
+                latitude = latitude,
+                longitude = longitude,
+                locationName = locationName ?: "${"%.5f".format(latitude)}, ${"%.5f".format(longitude)}"
+            )
+        }
+    }
 
     fun onReceiptSelected(uri: Uri) {
         _uiState.value = _uiState.value.copy(receiptImageUri = uri, source = ExpenseSource.OCR)
@@ -305,5 +338,26 @@ class NewExpenseViewModel(
             showLabelPrompt = false,
             pendingExpenseId = null
         )
+    }
+
+    private suspend fun reverseGeocode(latitude: Double, longitude: Double): String? {
+        return try {
+            val geocoder = Geocoder(context, Locale.getDefault())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                suspendCancellableCoroutine { continuation ->
+                    geocoder.getFromLocation(latitude, longitude, 1) { addresses ->
+                        val address = addresses.firstOrNull()
+                        continuation.resume(address?.getAddressLine(0) ?: address?.featureName)
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocation(latitude, longitude, 1)
+                    ?.firstOrNull()
+                    ?.let { address -> address.getAddressLine(0) ?: address.featureName }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 }
