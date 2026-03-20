@@ -289,7 +289,7 @@ private fun NewExpenseFormContent(
                 onConfirm = { viewModel.saveExpense() }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(96.dp))
 
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp),
@@ -425,7 +425,7 @@ private fun NewExpenseFormContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(40.dp))
 
                 Button(
                     onClick = { showReceiptOptions = true },
