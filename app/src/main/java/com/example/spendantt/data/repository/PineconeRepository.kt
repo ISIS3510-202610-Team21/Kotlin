@@ -36,28 +36,26 @@ class PineconeRepository {
 
     // ── SEED: poblar Pinecone con labels por defecto ──────────
     /**
-     * Puebla Pinecone con las labels por defecto.
-     * Llamar una vez al registrar el primer usuario.
-     * Incluye variantes de nombres comunes para mejorar el matching.
+     * Construye todos los vectores y los envía en lotes de 10
+     * para evitar el error STRING_TOO_LARGE de Android JSON.
+     * Un vector de 384 dimensiones × 100 vectores = String gigante que explota.
+     * Con lotes de 10 cada request es pequeño y manejable.
      */
     suspend fun seedDefaultLabels(labels: List<LabelEntity>) {
         withContext(Dispatchers.IO) {
             try {
-                val vectors = JSONArray()
+                val allVectors = mutableListOf<JSONObject>()
 
                 labels.forEach { label ->
-                    // Vector principal del nombre de la label
-                    vectors.put(buildVector(
+                    allVectors.add(buildVector(
                         id = "label_${label.name.lowercase().replace(" ", "_")}",
                         text = label.name,
                         labelName = label.name,
                         category = label.category ?: "Other"
                     ))
-
-                    // Variantes semánticas para mejorar el matching
                     val variants = getSemanticVariants(label.name)
                     variants.forEachIndexed { i, variant ->
-                        vectors.put(buildVector(
+                        allVectors.add(buildVector(
                             id = "label_${label.name.lowercase().replace(" ", "_")}_v$i",
                             text = variant,
                             labelName = label.name,
@@ -66,7 +64,13 @@ class PineconeRepository {
                     }
                 }
 
-                upsertVectors(vectors)
+                // Enviar en lotes de 10 para no superar el límite de tamaño
+                allVectors.chunked(10).forEach { batch ->
+                    val batchArray = JSONArray()
+                    batch.forEach { batchArray.put(it) }
+                    upsertVectors(batchArray)
+                }
+
             } catch (e: Exception) {
                 // Fallo silencioso
             }
