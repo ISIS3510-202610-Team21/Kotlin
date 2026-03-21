@@ -33,6 +33,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 data class NewExpenseUiState(
     val name: String = "",
     val amount: String = "",
+    val regretExpense: Boolean = false,
     val date: String = "",
     val time: String = "",
     val locationName: String = "",
@@ -128,6 +129,9 @@ class NewExpenseViewModel(
     }
 
     fun onNameChange(value: String) { _uiState.value = _uiState.value.copy(name = value) }
+    fun onRegretExpenseChange(value: Boolean) {
+        _uiState.value = _uiState.value.copy(regretExpense = value)
+    }
     fun onAmountChange(value: String) {
         val sanitized = value.filter { it.isDigit() || it == '.' || it == ',' }
         _uiState.value = _uiState.value.copy(amount = sanitized)
@@ -262,6 +266,7 @@ class NewExpenseViewModel(
                     userId = userId,
                     name = name,
                     amount = amount,
+                    isRecurring = state.regretExpense,
                     date = parsedDate,
                     time = state.time,
                     latitude = state.latitude,

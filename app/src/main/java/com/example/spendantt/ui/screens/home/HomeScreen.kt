@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,7 +20,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,7 +56,8 @@ import java.util.Locale
 fun HomeScreen(
     viewModel: HomeViewModel,
     onNotificationsClick: () -> Unit = {},
-    onLogoutClick: () -> Unit = {}
+    onLogoutClick: () -> Unit = {},
+    onExpenseClick: (Int) -> Unit = {}
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -81,7 +85,8 @@ fun HomeScreen(
         allExpenses = viewModel.allExpenses.value,
         unreadNotificationsCount = viewModel.unreadNotificationsCount.value,
         onNotificationsClick = onNotificationsClick,
-        onLogoutClick = onLogoutClick
+        onLogoutClick = onLogoutClick,
+        onExpenseClick = onExpenseClick
     )
 }
 
@@ -94,7 +99,8 @@ private fun HomeScreenContent(
     allExpenses: List<ExpenseWithLabels>,
     unreadNotificationsCount: Int,
     onNotificationsClick: () -> Unit = {},
-    onLogoutClick: () -> Unit = {}
+    onLogoutClick: () -> Unit = {},
+    onExpenseClick: (Int) -> Unit = {}
 ) {
     val expenseSections = rememberExpenseSections(allExpenses)
 
@@ -300,7 +306,8 @@ private fun HomeScreenContent(
                 ExpenseCard(
                     expense = section.expenses[index],
                     categoryColorMap = categoryColorMap,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                    onClick = { onExpenseClick(section.expenses[index].expense.id) }
                 )
             }
         }
@@ -400,69 +407,81 @@ private fun CategoryBar(
 private fun ExpenseCard(
     expense: ExpenseWithLabels,
     categoryColorMap: Map<String, Color>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     val firstLabel = expense.labels.firstOrNull()
     val labelName = firstLabel?.name ?: "Other"
     val iconRes = LabelIconMapper.getIconForLabel(labelName)
     val cardColor = categoryColorMap[labelName] ?: LabelIconMapper.getConsistentColorForLabel(labelName)
+    val pastelCardColor = lerp(cardColor, Color.White, 0.72f)
 
-    Row(
+    Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(cardColor.copy(alpha = 0.25f))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .shadow(
+                elevation = 3.dp,
+                shape = RoundedCornerShape(0.dp),
+                clip = false
+            )
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(0.dp)
     ) {
-        // Icon circle
-        Box(
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(cardColor),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .background(pastelCardColor)
+                .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(id = iconRes),
-                contentDescription = labelName,
-                tint = Color.Unspecified,
-                modifier = Modifier.size(26.dp)
-            )
-        }
+            Box(
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(cardColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = labelName,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
 
-        // Name and category
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 14.dp, end = 8.dp)
-        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp, end = 8.dp)
+            ) {
+                Text(
+                    text = expense.expense.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = SpendAntFontFamily,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = labelName,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
+                    color = Color.Gray
+                )
+            }
+
             Text(
-                text = expense.expense.name,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = SpendAntFontFamily,
-                color = Color.Black,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = labelName,
-                fontSize = 13.sp,
+                text = "COP ${DecimalFormat("#,##0").format(expense.expense.amount)}",
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = SpendAntFontFamily,
-                color = Color.Gray
+                color = Color.Black,
+                modifier = Modifier.padding(end = 16.dp)
             )
         }
-
-        // Amount
-        Text(
-            text = "COP ${DecimalFormat("#,##0").format(expense.expense.amount)}",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = SpendAntFontFamily,
-            color = Color.Black
-        )
     }
 }
 
