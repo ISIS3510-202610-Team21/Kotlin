@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +34,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -282,6 +286,7 @@ private fun NewExpenseFormContent(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(bottom = 92.dp)
         ) {
             TopBar(
                 title = "New Expense",
@@ -298,6 +303,11 @@ private fun NewExpenseFormContent(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .shadow(
+                            elevation = 3.dp,
+                            shape = RoundedCornerShape(0.dp),
+                            clip = false
+                        )
                         .background(Color(0xFFE2F8E4))
                 ) {
                     OutlinedTextField(
@@ -309,18 +319,16 @@ private fun NewExpenseFormContent(
                         shape = RoundedCornerShape(0.dp),
                         colors = expenseEntryFieldColors()
                     )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(SpendAntBlack)
-                    )
                 }
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .shadow(
+                            elevation = 3.dp,
+                            shape = RoundedCornerShape(0.dp),
+                            clip = false
+                        )
                         .background(Color(0xFFE2F8E4))
                 ) {
                     OutlinedTextField(
@@ -333,46 +341,11 @@ private fun NewExpenseFormContent(
                         shape = RoundedCornerShape(0.dp),
                         colors = expenseEntryFieldColors()
                     )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(SpendAntBlack)
-                    )
                 }
 
-                ExpenseMetaPickerRow(
-                    iconRes = R.drawable.ic_calendar,
-                    label = "Date",
-                    value = uiState.date.ifEmpty { "Select date" },
-                    onClick = {
-                        showDatePicker(
-                            context = context,
-                            initialDate = uiState.date,
-                            onDateSelected = viewModel::onDateSelected
-                        )
-                    }
-                )
-
-                ExpenseMetaPickerRow(
-                    iconRes = R.drawable.ic_clock,
-                    label = "Time",
-                    value = uiState.time.ifEmpty { "Select time" },
-                    onClick = {
-                        showTimePicker(
-                            context = context,
-                            initialTime = uiState.time,
-                            onTimeSelected = viewModel::onTimeSelected
-                        )
-                    }
-                )
-
-                ExpenseMetaPickerRow(
-                    iconRes = R.drawable.ic_location,
-                    label = "Location",
-                    value = uiState.locationName.ifEmpty { "Pick from map" },
-                    onClick = onLocationClick
+                RegretExpenseRow(
+                    checked = uiState.regretExpense,
+                    onCheckedChange = viewModel::onRegretExpenseChange
                 )
 
                 FlowRow(
@@ -486,6 +459,28 @@ private fun NewExpenseFormContent(
                 CircularProgressIndicator(color = SpendAntGreen)
             }
         }
+
+        ExpenseBottomMetaBar(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            date = uiState.date.ifEmpty { "Select date" },
+            time = uiState.time.ifEmpty { "Select time" },
+            location = uiState.locationName.ifEmpty { "Pick location" },
+            onDateClick = {
+                showDatePicker(
+                    context = context,
+                    initialDate = uiState.date,
+                    onDateSelected = viewModel::onDateSelected
+                )
+            },
+            onTimeClick = {
+                showTimePicker(
+                    context = context,
+                    initialTime = uiState.time,
+                    onTimeSelected = viewModel::onTimeSelected
+                )
+            },
+            onLocationClick = onLocationClick
+        )
     }
 
     if (showReceiptOptions) {
@@ -901,6 +896,113 @@ private fun ExpenseMetaPickerRow(
 }
 
 @Composable
+private fun RegretExpenseRow(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = SpendAntGreen,
+                uncheckedColor = SpendAntBlack,
+                checkmarkColor = SpendAntBlack
+            )
+        )
+        Text(
+            text = "Do you regret this expense?",
+            color = SpendAntBlack,
+            fontFamily = SpendAntFontFamily,
+            fontSize = 14.sp
+        )
+    }
+}
+
+@Composable
+internal fun ExpenseBottomMetaBar(
+    modifier: Modifier = Modifier,
+    date: String,
+    time: String,
+    location: String,
+    onDateClick: () -> Unit,
+    onTimeClick: () -> Unit,
+    onLocationClick: () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 3.dp,
+                shape = RoundedCornerShape(0.dp),
+                clip = false
+            )
+            .background(SpendAntWhite)
+            .border(width = 1.dp, color = Color(0xFFE3E3E3))
+            .navigationBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ExpenseBottomMetaItem(
+            iconRes = R.drawable.ic_calendar,
+            value = date,
+            modifier = Modifier.weight(1f),
+            onClick = onDateClick
+        )
+        ExpenseBottomMetaItem(
+            iconRes = R.drawable.ic_clock,
+            value = time,
+            modifier = Modifier.weight(1f),
+            onClick = onTimeClick
+        )
+        ExpenseBottomMetaItem(
+            iconRes = R.drawable.ic_location,
+            value = location,
+            modifier = Modifier.weight(1f),
+            onClick = onLocationClick
+        )
+    }
+}
+
+@Composable
+private fun ExpenseBottomMetaItem(
+    iconRes: Int,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            painter = painterResource(id = iconRes),
+            contentDescription = value,
+            tint = SpendAntBlack,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = value,
+            color = SpendAntBlack,
+            fontSize = 12.sp,
+            fontFamily = SpendAntFontFamily,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
 private fun InlineLoading(text: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -994,7 +1096,7 @@ private fun ReceiptOptionButton(
 }
 
 @Composable
-private fun expenseEntryFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun expenseEntryFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Color.Transparent,
     unfocusedBorderColor = Color.Transparent,
     disabledBorderColor = Color.Transparent,
@@ -1034,7 +1136,7 @@ private fun spendAntTextFieldColors() = OutlinedTextFieldDefaults.colors(
     cursorColor = SpendAntBlack
 )
 
-private fun showDatePicker(
+internal fun showDatePicker(
     context: android.content.Context,
     initialDate: String,
     onDateSelected: (Long) -> Unit
@@ -1060,7 +1162,7 @@ private fun showDatePicker(
     ).show()
 }
 
-private fun showTimePicker(
+internal fun showTimePicker(
     context: android.content.Context,
     initialTime: String,
     onTimeSelected: (Int, Int) -> Unit

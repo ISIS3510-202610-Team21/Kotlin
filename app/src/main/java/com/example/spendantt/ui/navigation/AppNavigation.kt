@@ -27,6 +27,7 @@ import com.example.spendantt.ui.screens.onboarding.OnboardingScreen3
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
 import com.example.spendantt.ui.screens.budget.EditProfileScreen
 import com.example.spendantt.ui.screens.budget.ProfileScreen
+import com.example.spendantt.ui.screens.expense.ExpenseDetailScreen
 import com.example.spendantt.ui.screens.expense.NewExpenseScreen
 import com.example.spendantt.ui.screens.goal.GoalsRoute
 import com.example.spendantt.ui.screens.home.HomeScreen
@@ -35,6 +36,7 @@ import com.example.spendantt.viewmodel.BudgetViewModel
 import com.example.spendantt.viewmodel.GoalsViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
 import com.example.spendantt.viewmodel.LoginViewModel
+import com.example.spendantt.viewmodel.ExpenseDetailViewModel
 import com.example.spendantt.viewmodel.NewExpenseViewModel
 import com.example.spendantt.viewmodel.NotificationsViewModel
 import com.example.spendantt.viewmodel.RegisterViewModel
@@ -52,6 +54,7 @@ sealed class Screen(val route: String) {
     object Goals : Screen("goals")
     object Budget : Screen("budget")
     object NewExpense : Screen("new_expense")
+    object ExpenseDetail : Screen("expense_detail")
     object Notifications : Screen("notifications")
 }
 
@@ -63,6 +66,7 @@ private val routesWithoutNavBar = listOf(
     Screen.Onboarding2.route,
     Screen.Onboarding3.route,
     Screen.NewExpense.route,
+    Screen.ExpenseDetail.route,
     Screen.EditProfile.route,
     Screen.Notifications.route
 )
@@ -201,6 +205,9 @@ fun AppNavigation(
                         homeViewModel.markNotificationsAsRead()
                         navController.navigate(Screen.Notifications.route) { launchSingleTop = true }
                     },
+                    onExpenseClick = { expenseId ->
+                        navController.navigate("${Screen.ExpenseDetail.route}/$expenseId")
+                    },
                     onLogoutClick = {
                         onLogout()
                         navController.navigate(Screen.Welcome.route) {
@@ -219,6 +226,24 @@ fun AppNavigation(
                     viewModel = newExpenseViewModel,
                     onClose = { navController.popBackStack() },
                     onSaved = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable("${Screen.ExpenseDetail.route}/{expenseId}") { backStackEntry ->
+                if (currentUserId == null) return@composable
+                val expenseId = backStackEntry.arguments?.getString("expenseId")?.toIntOrNull()
+                    ?: return@composable
+                val expenseDetailViewModel = remember(currentUserId, expenseId, firebaseUid) {
+                    ExpenseDetailViewModel(context, expenseId, firebaseUid)
+                }
+                ExpenseDetailScreen(
+                    viewModel = expenseDetailViewModel,
+                    onBack = { navController.popBackStack() },
+                    onDeleted = {
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Home.route) { inclusive = true }
                         }

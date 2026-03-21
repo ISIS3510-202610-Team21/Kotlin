@@ -1,5 +1,10 @@
 package com.example.spendantt.ui.screens.onboarding
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,10 +26,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.spendantt.R
 import com.example.spendantt.ui.components.BlackButton
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreenv2
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun OnboardingScreen1(
@@ -165,6 +172,13 @@ fun OnboardingScreen3(
     onSkip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        onAllowNotifications()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -203,7 +217,19 @@ fun OnboardingScreen3(
 
             BlackButton(
                 text = "Allow Notification Access",
-                onClick = onAllowNotifications,
+                onClick = {
+                    if (
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        onAllowNotifications()
+                    }
+                },
                 width = 260.dp,
                 height = 50.dp,
                 cornerRadius = 25.dp,
