@@ -88,6 +88,9 @@ class MainActivity : AppCompatActivity() {
                             .putBoolean(KEY_HAS_LOGGED_IN_ONCE, true)
                             .putInt(KEY_LAST_USER_ID, userId)
                             .apply()
+                        NotificationSyncScheduler.schedulePeriodic(activity)
+                        NotificationSyncScheduler.enqueueImmediate(activity, "login_success")
+                        NotificationSyncScheduler.enqueueHabitFixerImmediate(activity, "login_success")
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Welcome.route) { inclusive = true }
                         }

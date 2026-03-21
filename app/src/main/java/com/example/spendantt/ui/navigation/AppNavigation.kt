@@ -184,7 +184,8 @@ fun AppNavigation(
             composable("${Screen.Onboarding2.route}/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
                 OnboardingScreen2(
-                    onSyncCalendar = { navController.navigate("${Screen.Onboarding3.route}/$userId") },
+                    userId = userId,
+                    onImportSuccess = { navController.navigate("${Screen.Onboarding3.route}/$userId") },
                     onSkip = { navController.navigate("${Screen.Onboarding3.route}/$userId") }
                 )
             }

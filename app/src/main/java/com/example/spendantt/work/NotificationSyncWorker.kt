@@ -11,6 +11,7 @@ import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.data.repository.NotificationRepository
 import com.example.spendantt.data.repository.SpendingHistoryRepository
+import com.example.spendantt.data.service.HabitFixerService
 import com.example.spendantt.util.DailyFinanceCalculator
 import com.example.spendantt.util.SpendingAnomalyCalculator
 import kotlinx.coroutines.flow.first
@@ -34,12 +35,14 @@ class NotificationSyncWorker(
             val incomeRepository = IncomeRepository(database.incomeDao())
             val notificationRepository = NotificationRepository(applicationContext)
             val spendingHistoryRepository = SpendingHistoryRepository(applicationContext)
+            val habitFixerService = HabitFixerService(applicationContext)
             val goalPreferences = GoalPreferences(applicationContext)
             val user = database.userDao().getUserById(userId)
 
             val now = System.currentTimeMillis()
             val expenses = expenseRepository.getExpensesWithLabels(userId).first()
                 .filter { it.expense.date <= now }
+            habitFixerService.detectAndStorePatterns(userId, expenses.map { it.expense })
             val allGoals = goalRepository.getGoalsByUser(userId).first()
             val incomes = incomeRepository.getIncomesByUser(userId).first()
             val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)

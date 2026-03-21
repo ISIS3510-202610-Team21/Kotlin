@@ -12,6 +12,7 @@ class NotificationTimeChangeReceiver : BroadcastReceiver() {
         Log.d(TAG, "onReceive action=$action")
         NotificationSyncScheduler.schedulePeriodic(context)
         NotificationSyncScheduler.enqueueImmediate(context, action)
+        NotificationSyncScheduler.enqueueHabitFixerImmediate(context, action)
     }
 
     companion object {

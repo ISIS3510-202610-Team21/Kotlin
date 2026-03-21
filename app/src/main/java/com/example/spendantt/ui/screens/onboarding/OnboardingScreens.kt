@@ -2,6 +2,7 @@ package com.example.spendantt.ui.screens.onboarding
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,12 +16,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,10 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.spendantt.R
+import com.example.spendantt.data.service.IcsImportService
 import com.example.spendantt.ui.components.BlackButton
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreenv2
-import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 @Composable
 fun OnboardingScreen1(
@@ -101,10 +110,38 @@ fun OnboardingScreen1(
 
 @Composable
 fun OnboardingScreen2(
-    onSyncCalendar: () -> Unit,
+    userId: Int,
+    onImportSuccess: () -> Unit,
     onSkip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val icsImportService = remember { IcsImportService(context) }
+    var isImporting by remember { mutableStateOf(false) }
+    var importError by remember { mutableStateOf<String?>(null) }
+
+    val icsPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) {
+            isImporting = false
+            importError = "File selection was cancelled. You can retry or skip."
+            return@rememberLauncherForActivityResult
+        }
+
+        coroutineScope.launch {
+            val result = icsImportService.importFromUri(userId, uri)
+            result.fold(
+                onSuccess = { onImportSuccess() },
+                onFailure = { error ->
+                    isImporting = false
+                    importError = error.message ?: "Unable to import the selected .ics file."
+                }
+            )
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -119,7 +156,7 @@ fun OnboardingScreen2(
             Spacer(modifier = Modifier.height(120.dp))
 
             Text(
-                text = "To help us spot patterns in your spending—like that recurring Friday lunch or upcoming travel—we'd love to sync with your calendar.",
+                text = "To help us spot patterns in your spending, import a calendar .ics file so SpendAnt can understand your upcoming plans and routines.",
                 fontSize = 18.sp,
                 fontFamily = SpendAntFontFamily,
                 fontWeight = FontWeight.SemiBold,
@@ -142,15 +179,39 @@ fun OnboardingScreen2(
             Spacer(modifier = Modifier.weight(1f))
 
             BlackButton(
-                text = "Sync Calendar",
-                onClick = onSyncCalendar,
-                width = 180.dp,
+                text = if (isImporting) "Importing..." else "Import Calendar (.ics)",
+                onClick = {
+                    if (!isImporting) {
+                        importError = null
+                        isImporting = true
+                        icsPickerLauncher.launch(arrayOf("*/*"))
+                    }
+                },
+                width = 240.dp,
                 height = 50.dp,
                 cornerRadius = 25.dp,
                 fontSize = 16.sp
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            if (isImporting) {
+                CircularProgressIndicator(color = Color.Black)
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            importError?.let { error ->
+                Text(
+                    text = error,
+                    fontSize = 14.sp,
+                    fontFamily = SpendAntFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Black,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             Text(
                 text = "Skip",
