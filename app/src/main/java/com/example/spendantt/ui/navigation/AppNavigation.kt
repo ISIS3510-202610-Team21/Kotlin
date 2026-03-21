@@ -24,6 +24,7 @@ import com.example.spendantt.ui.screens.auth.WelcomeScreen
 import com.example.spendantt.ui.screens.onboarding.OnboardingScreen1
 import com.example.spendantt.ui.screens.onboarding.OnboardingScreen2
 import com.example.spendantt.ui.screens.onboarding.OnboardingScreen3
+import com.example.spendantt.ui.screens.onboarding.OnboardingScreen4
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
 import com.example.spendantt.ui.screens.budget.EditProfileScreen
 import com.example.spendantt.ui.screens.budget.ProfileScreen
@@ -48,6 +49,7 @@ sealed class Screen(val route: String) {
     object Onboarding1 : Screen("onboarding1")
     object Onboarding2 : Screen("onboarding2")
     object Onboarding3 : Screen("onboarding3")
+    object Onboarding4 : Screen("onboarding4")
     object Home : Screen("home")
     object Profile : Screen("profile")
     object EditProfile : Screen("edit_profile")
@@ -65,6 +67,7 @@ private val routesWithoutNavBar = listOf(
     Screen.Onboarding1.route,
     Screen.Onboarding2.route,
     Screen.Onboarding3.route,
+    Screen.Onboarding4.route,
     Screen.NewExpense.route,
     Screen.ExpenseDetail.route,
     Screen.EditProfile.route,
@@ -181,7 +184,8 @@ fun AppNavigation(
             composable("${Screen.Onboarding2.route}/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
                 OnboardingScreen2(
-                    onSyncCalendar = { navController.navigate("${Screen.Onboarding3.route}/$userId") },
+                    userId = userId,
+                    onImportSuccess = { navController.navigate("${Screen.Onboarding3.route}/$userId") },
                     onSkip = { navController.navigate("${Screen.Onboarding3.route}/$userId") }
                 )
             }
@@ -189,7 +193,15 @@ fun AppNavigation(
             composable("${Screen.Onboarding3.route}/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
                 OnboardingScreen3(
-                    onAllowNotifications = { onLoginSuccess(userId) },
+                    onAllowNotifications = { navController.navigate("${Screen.Onboarding4.route}/$userId") },
+                    onSkip = { navController.navigate("${Screen.Onboarding4.route}/$userId") }
+                )
+            }
+
+            composable("${Screen.Onboarding4.route}/{userId}") { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+                OnboardingScreen4(
+                    onAllowLocation = { onLoginSuccess(userId) },
                     onSkip = { onLoginSuccess(userId) }
                 )
             }

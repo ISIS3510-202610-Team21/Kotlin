@@ -13,6 +13,8 @@ object NotificationSyncScheduler {
     private const val TAG = "SpendAntNotifSync"
     private const val PERIODIC_WORK_NAME = "notification_sync_work"
     private const val IMMEDIATE_WORK_NAME = "notification_sync_immediate"
+    private const val HABIT_FIXER_PERIODIC_WORK_NAME = "habit_fixer_periodic_work"
+    private const val HABIT_FIXER_IMMEDIATE_WORK_NAME = "habit_fixer_immediate"
 
     fun schedulePeriodic(context: Context) {
         val request = PeriodicWorkRequestBuilder<NotificationSyncWorker>(15, TimeUnit.MINUTES)
@@ -21,6 +23,14 @@ object NotificationSyncScheduler {
             PERIODIC_WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
             request
+        )
+
+        val habitRequest = PeriodicWorkRequestBuilder<HabitFixerWorker>(30, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            HABIT_FIXER_PERIODIC_WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            habitRequest
         )
         Log.d(TAG, "schedulePeriodic")
     }
@@ -33,5 +43,15 @@ object NotificationSyncScheduler {
             request
         )
         Log.d(TAG, "enqueueImmediate reason=$reason")
+    }
+
+    fun enqueueHabitFixerImmediate(context: Context, reason: String) {
+        val request = OneTimeWorkRequestBuilder<HabitFixerWorker>().build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            HABIT_FIXER_IMMEDIATE_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            request
+        )
+        Log.d(TAG, "enqueueHabitFixerImmediate reason=$reason")
     }
 }

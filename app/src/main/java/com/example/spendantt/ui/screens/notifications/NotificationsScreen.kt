@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.WarningAmber
@@ -325,6 +326,7 @@ private fun notificationStyle(type: String): NotificationVisualStyle {
         "budget_exceeded",
         "goal_adjustment",
         "spending_anomaly",
+        "habit_fixer",
         "warning",
         "daily_budget"
     )
@@ -336,6 +338,7 @@ private fun notificationStyle(type: String): NotificationVisualStyle {
             icon = when (normalizedType) {
                 "budget_exceeded", "daily_budget" -> Icons.Default.AccountBalanceWallet
                 "spending_anomaly" -> Icons.Default.WarningAmber
+                "habit_fixer" -> Icons.Default.LocationOn
                 else -> Icons.Default.Flag
             }
         )
@@ -346,6 +349,7 @@ private fun notificationStyle(type: String): NotificationVisualStyle {
             icon = when {
                 normalizedType.contains("goal_completed") -> Icons.Default.EmojiEvents
                 normalizedType.contains("goal_half") -> Icons.Default.Celebration
+                normalizedType.contains("weekly_insight") -> Icons.Default.NotificationsNone
                 normalizedType.contains("goal") -> Icons.Default.Savings
                 else -> Icons.Default.NotificationsNone
             }

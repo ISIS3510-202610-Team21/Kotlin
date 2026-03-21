@@ -11,6 +11,9 @@ import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.data.repository.NotificationRepository
 import com.example.spendantt.data.repository.SpendingHistoryRepository
+import com.example.spendantt.data.service.AutoCategorizationUsageTracker
+import com.example.spendantt.data.service.HabitFixerService
+import com.example.spendantt.data.service.WeeklyInsightService
 import com.example.spendantt.util.DailyFinanceCalculator
 import com.example.spendantt.util.SpendingAnomalyCalculator
 import kotlinx.coroutines.flow.first
@@ -34,17 +37,21 @@ class NotificationSyncWorker(
             val incomeRepository = IncomeRepository(database.incomeDao())
             val notificationRepository = NotificationRepository(applicationContext)
             val spendingHistoryRepository = SpendingHistoryRepository(applicationContext)
+            val habitFixerService = HabitFixerService(applicationContext)
+            val weeklyInsightService = WeeklyInsightService(AutoCategorizationUsageTracker(applicationContext))
             val goalPreferences = GoalPreferences(applicationContext)
             val user = database.userDao().getUserById(userId)
 
             val now = System.currentTimeMillis()
             val expenses = expenseRepository.getExpensesWithLabels(userId).first()
                 .filter { it.expense.date <= now }
+            habitFixerService.detectAndStorePatterns(userId, expenses.map { it.expense })
             val allGoals = goalRepository.getGoalsByUser(userId).first()
             val incomes = incomeRepository.getIncomesByUser(userId).first()
             val totalDailyIncome = DailyFinanceCalculator.sumDailyIncome(incomes)
             val todayExpenses = DailyFinanceCalculator.calculateTodayExpenses(expenses, now)
             val todayKey = startOfTodayMillis(now)
+            notificationRepository.pruneInvalidScheduledNotifications(userId, now)
             notificationRepository.pruneFutureDailyNotifications(userId, todayKey)
             syncWelcomeNotification(
                 notificationRepository = notificationRepository,
@@ -59,6 +66,13 @@ class NotificationSyncWorker(
                 userId = userId,
                 expenses = expenses,
                 userCreatedAt = user?.createdAt ?: now,
+                now = now
+            )
+            syncWeeklyInsightNotification(
+                notificationRepository = notificationRepository,
+                weeklyInsightService = weeklyInsightService,
+                userId = userId,
+                expenses = expenses,
                 now = now
             )
             val selectedGoalId = goalPreferences.getSelectedGoalId(userId)
@@ -250,6 +264,35 @@ class NotificationSyncWorker(
         } else {
             notificationRepository.removeNotification(userId, notificationId)
         }
+    }
+
+    private fun syncWeeklyInsightNotification(
+        notificationRepository: NotificationRepository,
+        weeklyInsightService: WeeklyInsightService,
+        userId: Int,
+        expenses: List<com.example.spendantt.data.local.entity.ExpenseWithLabels>,
+        now: Long
+    ) {
+        val calendar = Calendar.getInstance().apply { timeInMillis = now }
+        if (calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SATURDAY) return
+
+        val saturdayStart = startOfTodayMillis(now)
+        val weekStart = saturdayStart - (6L * ONE_DAY_MILLIS)
+        val insight = weeklyInsightService.buildWeeklyInsight(
+            userId = userId,
+            expenses = expenses,
+            weekStartInclusive = weekStart,
+            weekEndInclusive = now,
+            saturdayStart = saturdayStart
+        )
+
+        notificationRepository.upsertNotification(
+            userId = userId,
+            notificationId = insight.notificationId,
+            type = "weekly_insight",
+            title = insight.title,
+            body = insight.body
+        )
     }
 
     private fun startOfTodayMillis(now: Long = System.currentTimeMillis()): Long {

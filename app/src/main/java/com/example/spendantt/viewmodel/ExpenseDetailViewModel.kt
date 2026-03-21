@@ -1,6 +1,8 @@
 package com.example.spendantt.viewmodel
 
 import android.content.Context
+import android.location.Geocoder
+import android.os.Build
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -13,6 +15,8 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 data class ExpenseDetailUiState(
     val expense: ExpenseWithLabels? = null,
@@ -33,7 +37,7 @@ data class ExpenseDetailUiState(
 )
 
 class ExpenseDetailViewModel(
-    context: Context,
+    private val context: Context,
     private val expenseId: Int,
     private val firebaseUid: String?
 ) : ViewModel() {
@@ -92,6 +96,17 @@ class ExpenseDetailViewModel(
         }
         val timeFormat = SimpleDateFormat("hh:mma", Locale.getDefault())
         _uiState.value = _uiState.value.copy(time = timeFormat.format(calendar.time))
+    }
+
+    fun onLocationSelected(latitude: Double, longitude: Double) {
+        viewModelScope.launch {
+            val locationName = reverseGeocode(latitude, longitude)
+            _uiState.value = _uiState.value.copy(
+                latitude = latitude,
+                longitude = longitude,
+                locationName = locationName ?: "${"%.5f".format(latitude)}, ${"%.5f".format(longitude)}"
+            )
+        }
     }
 
     fun saveExpense() {
@@ -171,6 +186,27 @@ class ExpenseDetailViewModel(
     private fun parseDate(value: String): Long? {
         return try {
             SimpleDateFormat("MM/dd/yyyy", Locale.getDefault()).parse(value)?.time
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private suspend fun reverseGeocode(latitude: Double, longitude: Double): String? {
+        return try {
+            val geocoder = Geocoder(context, Locale.getDefault())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                suspendCancellableCoroutine { continuation ->
+                    geocoder.getFromLocation(latitude, longitude, 1) { addresses ->
+                        val address = addresses.firstOrNull()
+                        continuation.resume(address?.getAddressLine(0) ?: address?.featureName)
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocation(latitude, longitude, 1)
+                    ?.firstOrNull()
+                    ?.let { address -> address.getAddressLine(0) ?: address.featureName }
+            }
         } catch (_: Exception) {
             null
         }

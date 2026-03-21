@@ -194,6 +194,46 @@ class NotificationRepository(context: Context) {
         Log.d(TAG, "pruneFutureDailyNotifications userId=$userId removed=${removedIds.joinToString()}")
     }
 
+    fun pruneInvalidScheduledNotifications(userId: Int, now: Long = System.currentTimeMillis()) {
+        val notifications = getNotifications(userId)
+        if (notifications.isEmpty()) return
+
+        val todayStart = startOfDayMillis(now)
+        val currentHalfHourBucket = now / THIRTY_MINUTES_MILLIS
+        val removedIds = notifications.filter { notification ->
+            val createdInFuture = notification.createdAt > now + FUTURE_GRACE_MILLIS
+            val scheduledForFuture = when (notification.type) {
+                "budget_exceeded", "goal_adjustment", "spending_anomaly" -> {
+                    notification.id.substringAfterLast('_').toLongOrNull()?.let { it > todayStart } == true
+                }
+
+                "weekly_insight" -> {
+                    notification.id.substringAfterLast('_').toLongOrNull()?.let { it > todayStart } == true
+                }
+
+                "habit_fixer" -> {
+                    notification.id.substringAfterLast('_').toLongOrNull()?.let { it > currentHalfHourBucket } == true
+                }
+
+                else -> false
+            }
+
+            createdInFuture || scheduledForFuture
+        }.map { it.id }
+
+        if (removedIds.isEmpty()) {
+            Log.d(TAG, "pruneInvalidScheduledNotifications userId=$userId removed=")
+            return
+        }
+
+        val filtered = notifications.filterNot { it.id in removedIds }
+        removedIds.forEach { id -> NotificationManagerCompat.from(appContext).cancel(id.hashCode()) }
+        saveNotifications(userId, filtered)
+        removeSentToSystem(userId, removedIds)
+        removeSeenNotifications(userId, removedIds)
+        Log.d(TAG, "pruneInvalidScheduledNotifications userId=$userId removed=${removedIds.joinToString()}")
+    }
+
     fun postSimulationNotification(
         notificationId: String,
         title: String,
@@ -317,9 +357,21 @@ class NotificationRepository(context: Context) {
         saveSeenNotificationIds(userId, updated)
     }
 
+    private fun startOfDayMillis(now: Long): Long {
+        return java.util.Calendar.getInstance().apply {
+            timeInMillis = now
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
     companion object {
         private const val TAG = "SpendAntNotif"
         private const val PREFS_NAME = "notifications_prefs"
         private const val CHANNEL_ID = "spendant_notifications"
+        private const val FUTURE_GRACE_MILLIS = 60_000L
+        private const val THIRTY_MINUTES_MILLIS = 30L * 60L * 1000L
     }
 }
