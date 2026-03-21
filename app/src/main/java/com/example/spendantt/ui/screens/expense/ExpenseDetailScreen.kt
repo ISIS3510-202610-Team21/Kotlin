@@ -51,6 +51,7 @@ import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreen
 import com.example.spendantt.ui.theme.SpendAntWhite
 import com.example.spendantt.viewmodel.ExpenseDetailViewModel
+import com.google.android.gms.maps.model.LatLng
 import java.util.Locale
 
 @Composable
@@ -62,6 +63,20 @@ fun ExpenseDetailScreen(
     val uiState by viewModel.uiState
     val context = LocalContext.current
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var isMapPickerOpen by remember { mutableStateOf(false) }
+
+    if (isMapPickerOpen) {
+        MapPickerScreen(
+            initialLatitude = uiState.latitude,
+            initialLongitude = uiState.longitude,
+            onClose = { isMapPickerOpen = false },
+            onConfirm = { latLng: LatLng ->
+                viewModel.onLocationSelected(latLng.latitude, latLng.longitude)
+                isMapPickerOpen = false
+            }
+        )
+        return
+    }
 
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) {
@@ -219,7 +234,7 @@ fun ExpenseDetailScreen(
                     onTimeSelected = viewModel::onTimeSelected
                 )
             },
-            onLocationClick = {}
+            onLocationClick = { isMapPickerOpen = true }
         )
     }
 

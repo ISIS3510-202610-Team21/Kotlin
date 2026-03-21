@@ -251,3 +251,97 @@ fun OnboardingScreen3(
         }
     }
 }
+
+@Composable
+fun OnboardingScreen4(
+    onAllowLocation: () -> Unit,
+    onSkip: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        onAllowLocation()
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SpendAntGreenv2)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(120.dp))
+
+            Text(
+                text = "Want smarter suggestions? Allow location access so SpendAnt can detect nearby places, organize your spending better, and make each record faster and more accurate.",
+                fontSize = 18.sp,
+                fontFamily = SpendAntFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.Black,
+                textAlign = TextAlign.Center,
+                lineHeight = 26.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.ant_standing),
+                contentDescription = "SpendAnt mascot standing",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .height(280.dp)
+                    .fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            BlackButton(
+                text = "Allow Location Access",
+                onClick = {
+                    val hasFinePermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                    val hasCoarsePermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (hasFinePermission || hasCoarsePermission) {
+                        onAllowLocation()
+                    } else {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                },
+                width = 260.dp,
+                height = 50.dp,
+                cornerRadius = 25.dp,
+                fontSize = 16.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Skip",
+                fontSize = 16.sp,
+                fontFamily = SpendAntFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.Black,
+                modifier = Modifier.clickable { onSkip() }
+            )
+
+            Spacer(modifier = Modifier.height(60.dp))
+        }
+    }
+}

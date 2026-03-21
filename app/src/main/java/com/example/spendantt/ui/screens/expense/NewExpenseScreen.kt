@@ -559,7 +559,7 @@ private fun NewExpenseFormContent(
 }
 
 @Composable
-private fun MapPickerScreen(
+internal fun MapPickerScreen(
     initialLatitude: Double?,
     initialLongitude: Double?,
     onClose: () -> Unit,
