@@ -14,6 +14,7 @@ import com.example.spendantt.data.ocr.OcrProcessor
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.service.AutoCategorizationService
+import com.example.spendantt.data.service.AutoCategorizationUsageTracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,6 +66,7 @@ class NewExpenseViewModel(
     private val labelRepository = LabelRepository(db.labelDao())
     private val ocrProcessor = OcrProcessor(context)
     private val autoCategorizationService = AutoCategorizationService(context, userId)
+    private val autoCategorizationUsageTracker = AutoCategorizationUsageTracker(context)
 
     private var firebaseUid: String? = null
 
@@ -291,6 +293,7 @@ class NewExpenseViewModel(
                                 )
                                 return@fold
                             }
+                            autoCategorizationUsageTracker.recordAutoCategorization(userId)
                         }
 
                         _uiState.value = _uiState.value.copy(

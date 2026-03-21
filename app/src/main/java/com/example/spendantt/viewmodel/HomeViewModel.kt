@@ -100,6 +100,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                 _allExpenses.value = latestExpenses
                 _monthlyExpenses.value = DailyFinanceCalculator.calculateCurrentMonthExpenses(latestExpenses, now)
                 _categoryExpenses.value = calculateCurrentMonthCategoryMap(latestExpenses, now)
+                notificationRepository.pruneInvalidScheduledNotifications(userId, now)
                 notificationRepository.pruneFutureDailyNotifications(userId, startOfTodayMillis(now))
                 recalculateFinancialState(latestExpenses, now)
                 _unreadNotificationsCount.value = notificationRepository.getUnreadCount(userId)
@@ -152,6 +153,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                         _monthlyExpenses.value = 600000.0
                     }
                     _categoryExpenses.value = categoryMap
+                    notificationRepository.pruneInvalidScheduledNotifications(userId, now)
                     notificationRepository.pruneFutureDailyNotifications(userId, startOfTodayMillis(now))
 
                     _isLoading.value = false

@@ -349,6 +349,7 @@ private fun notificationStyle(type: String): NotificationVisualStyle {
             icon = when {
                 normalizedType.contains("goal_completed") -> Icons.Default.EmojiEvents
                 normalizedType.contains("goal_half") -> Icons.Default.Celebration
+                normalizedType.contains("weekly_insight") -> Icons.Default.NotificationsNone
                 normalizedType.contains("goal") -> Icons.Default.Savings
                 else -> Icons.Default.NotificationsNone
             }

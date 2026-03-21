@@ -17,6 +17,7 @@ import com.example.spendantt.ui.navigation.AppNavigation
 import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
 import com.example.spendantt.work.NotificationSyncScheduler
+import com.example.spendantt.work.NotificationTimeSanitizer
 
 class MainActivity : AppCompatActivity() {
 
@@ -24,6 +25,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        NotificationTimeSanitizer.sanitizeIfNeeded(this, "app_create")
         NotificationSyncScheduler.schedulePeriodic(this)
 
         val activity = this
@@ -100,6 +102,16 @@ class MainActivity : AppCompatActivity() {
                     }
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val timeJumpDetected = NotificationTimeSanitizer.sanitizeIfNeeded(this, "app_resume")
+        if (timeJumpDetected) {
+            NotificationSyncScheduler.schedulePeriodic(this)
+            NotificationSyncScheduler.enqueueImmediate(this, "app_resume_time_jump")
+            NotificationSyncScheduler.enqueueHabitFixerImmediate(this, "app_resume_time_jump")
         }
     }
 

@@ -10,6 +10,7 @@ class NotificationTimeChangeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
         Log.d(TAG, "onReceive action=$action")
+        NotificationTimeSanitizer.sanitizeIfNeeded(context, action)
         NotificationSyncScheduler.schedulePeriodic(context)
         NotificationSyncScheduler.enqueueImmediate(context, action)
         NotificationSyncScheduler.enqueueHabitFixerImmediate(context, action)
