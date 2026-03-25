@@ -199,6 +199,19 @@ private fun HomeScreenContent(
                         .size(24.dp)
                         .clickable(onClick = onLogoutClick)
                 )
+
+                ///Text(
+                ///    text = "TEST CRASH",
+                ///    fontSize = 10.sp,
+                ///    color = Color.Red,
+                ///    fontWeight = FontWeight.Bold,
+                ///    modifier = Modifier
+                ///        .align(Alignment.BottomEnd)
+                ///        .clickable {
+                 ///           throw RuntimeException("Test crash — HomeScreen")
+                 ///       }
+                ///)
+
             }
         }
 

@@ -41,6 +41,7 @@ import com.example.spendantt.viewmodel.ExpenseDetailViewModel
 import com.example.spendantt.viewmodel.NewExpenseViewModel
 import com.example.spendantt.viewmodel.NotificationsViewModel
 import com.example.spendantt.viewmodel.RegisterViewModel
+import com.example.spendantt.viewmodel.AnalyticsViewModel
 
 sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
@@ -211,6 +212,14 @@ fun AppNavigation(
                 val homeViewModel = remember(currentUserId) {
                     HomeViewModel(context, currentUserId)
                 }
+
+                val analyticsViewModel = remember(currentUserId) {
+                    AnalyticsViewModel(context, currentUserId)
+                }
+                LaunchedEffect(currentUserId) {
+                    analyticsViewModel.logAllBusinessQuestions()
+                }
+
                 HomeScreen(
                     viewModel = homeViewModel,
                     onNotificationsClick = {

@@ -83,7 +83,6 @@ class PineconeRepository {
             try {
                 val embedding = generateSimpleEmbedding(expenseName)
 
-                android.util.Log.d("PINECONE", "API Key: ${apiKey.take(10)}...")
 
                 val url = URL("$indexHost/query")
                 val connection = url.openConnection() as HttpURLConnection
@@ -106,15 +105,12 @@ class PineconeRepository {
                 }
 
                 val responseCode = connection.responseCode
-                android.util.Log.d("PINECONE", "Response code: $responseCode")
                 if (responseCode != HttpURLConnection.HTTP_OK) {
                     val error = connection.errorStream?.bufferedReader()?.readText()
-                    android.util.Log.d("PINECONE", "Error: $error")
                     return@withContext null
                 }
 
                 val responseText = connection.inputStream.bufferedReader().readText()
-                android.util.Log.d("PINECONE", "Response: $responseText")
                 val response = JSONObject(responseText)
 
                 //val response = JSONObject(connection.inputStream.bufferedReader().readText())
@@ -123,7 +119,7 @@ class PineconeRepository {
 
                 val topMatch = matches.getJSONObject(0)
                 val score = topMatch.optDouble("score", 0.0).toFloat()
-                android.util.Log.d("PINECONE", "Score: $score, Label: ${topMatch.optJSONObject("metadata")?.optString("label")}")
+
 
                 if (score >= threshold) {
                     topMatch.optJSONObject("metadata")?.optString("label")
