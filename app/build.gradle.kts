@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
     alias(libs.plugins.kotlin.android)
 }
 
@@ -92,6 +93,8 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.0")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.firebase:firebase-crashlytics-ktx")
+    implementation("com.google.firebase:firebase-analytics-ktx")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

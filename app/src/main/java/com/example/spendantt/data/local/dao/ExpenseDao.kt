@@ -60,7 +60,44 @@ interface ExpenseDao {
     @Query("SELECT SUM(amount) FROM expenses WHERE userId = :userId AND date BETWEEN :from AND :to")
     fun getTotalSpentInRange(userId: Int, from: Long, to: Long): Flow<Double?>
 
-    // Fase 2: descomentar para sincronización con backend
-    // @Query("SELECT * FROM expenses WHERE isSynced = 0")
-    // fun getUnsyncedExpenses(): Flow<List<ExpenseEntity>>
+    // ── BQ2: último gasto ─────────────────────────────────────
+    @Query("SELECT date FROM expenses WHERE userId = :userId ORDER BY date DESC LIMIT 1")
+    suspend fun getLastExpenseDate(userId: Int): Long?
+
+    // ── BQ3: gastos sin categorizar ───────────────────────────
+    @Query("SELECT COUNT(*) FROM expenses WHERE userId = :userId AND isPendingCategory = 1")
+    suspend fun countUncategorizedExpenses(userId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE userId = :userId")
+    suspend fun countAllExpenses(userId: Int): Int
+
+    // ── BQ4: hora más activa ──────────────────────────────────
+    // Retorna el time string (ej: "09:30PM") de todos los gastos
+    @Query("SELECT time FROM expenses WHERE userId = :userId")
+    suspend fun getAllExpenseTimes(userId: Int): List<String>
+
+    // ── BQ5: gastos recurrentes en rango de 3 meses ───────────
+    @Query("""
+        SELECT * FROM expenses 
+        WHERE userId = :userId 
+        AND isRecurring = 1 
+        AND date BETWEEN :from AND :to
+    """)
+    suspend fun getRecurringExpensesInRange(
+        userId: Int,
+        from: Long,
+        to: Long
+    ): List<ExpenseEntity>
+
+    // ── BQ6: conteo por método de registro ────────────────────
+    @Query("SELECT COUNT(*) FROM expenses WHERE userId = :userId AND source = 'MANUAL'")
+    suspend fun countManualExpenses(userId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE userId = :userId AND source = 'OCR'")
+    suspend fun countOcrExpenses(userId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE userId = :userId AND source = 'GOOGLE_PAY'")
+    suspend fun countGooglePayExpenses(userId: Int): Int
+
+
 }
