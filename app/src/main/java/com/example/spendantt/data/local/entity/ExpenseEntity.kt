@@ -49,7 +49,8 @@ data class ExpenseEntity(
 enum class ExpenseSource {
     MANUAL,
     OCR,
-    GOOGLE_PAY   // Fase 2
+    GOOGLE_PAY,
+    BOLD   // Transacciones Bold (datáfono)
 }
 
 enum class RecurrenceUnit {

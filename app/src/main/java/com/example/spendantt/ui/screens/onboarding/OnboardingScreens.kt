@@ -40,6 +40,7 @@ import com.example.spendantt.data.service.IcsImportService
 import com.example.spendantt.ui.components.BlackButton
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreenv2
+import com.example.spendantt.work.GmailNotificationListenerService
 import kotlinx.coroutines.launch
 
 @Composable
@@ -234,9 +235,16 @@ fun OnboardingScreen3(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var hasRequestedPostNotifications by remember { mutableStateOf(false) }
+    
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) {
+    ) { granted ->
+        hasRequestedPostNotifications = true
+        // Después de pedir POST_NOTIFICATIONS, abrir configuración de Notification Listener
+        if (!GmailNotificationListenerService.isNotificationListenerEnabled(context)) {
+            GmailNotificationListenerService.openNotificationListenerSettings(context)
+        }
         onAllowNotifications()
     }
 
@@ -254,7 +262,7 @@ fun OnboardingScreen3(
             Spacer(modifier = Modifier.height(120.dp))
 
             Text(
-                text = "Want instant insights? Allow notification access for Google Pay, and SpendAnt will categorize your spending the second it happens.",
+                text = "Want instant insights? Allow notification access to detect Gmail payment notifications (Bold, Google Pay) and SpendAnt will categorize your spending the second it happens.",
                 fontSize = 18.sp,
                 fontFamily = SpendAntFontFamily,
                 fontWeight = FontWeight.SemiBold,
@@ -279,6 +287,7 @@ fun OnboardingScreen3(
             BlackButton(
                 text = "Allow Notification Access",
                 onClick = {
+                    // Primero pedir permiso POST_NOTIFICATIONS (Android 13+)
                     if (
                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                         ContextCompat.checkSelfPermission(
@@ -288,6 +297,10 @@ fun OnboardingScreen3(
                     ) {
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
+                        // Si ya tiene POST_NOTIFICATIONS, ir directo a Notification Listener settings
+                        if (!GmailNotificationListenerService.isNotificationListenerEnabled(context)) {
+                            GmailNotificationListenerService.openNotificationListenerSettings(context)
+                        }
                         onAllowNotifications()
                     }
                 },
