@@ -12,12 +12,11 @@ import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseSource
 import com.example.spendantt.data.notifications.BoldTransactionParser
 import com.example.spendantt.data.repository.ExpenseRepository
-import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.repository.NotificationRepository
+import com.example.spendantt.data.service.AutoCategorizationService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -28,7 +27,6 @@ class GmailNotificationListenerService : NotificationListenerService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var expenseRepository: ExpenseRepository
-    private lateinit var labelRepository: LabelRepository
     private lateinit var notificationRepository: NotificationRepository
     private lateinit var prefs: SharedPreferences
 
@@ -36,7 +34,6 @@ class GmailNotificationListenerService : NotificationListenerService() {
         super.onCreate()
         val database = AppDatabase.getInstance(applicationContext)
         expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
-        labelRepository = LabelRepository(database.labelDao())
         notificationRepository = NotificationRepository(applicationContext)
         prefs = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         Log.d(TAG, "GmailNotificationListenerService created")
@@ -130,12 +127,8 @@ class GmailNotificationListenerService : NotificationListenerService() {
                     return@launch
                 }
 
-                // Buscar etiqueta apropiada
-                val labels = labelRepository.getLabelsByUser(userId).first()
-                val labelId = findMatchingLabel(parsed.merchantName, labels)
-
-                // Crear el expense
-                expenseRepository.insertExpense(
+                // Crear el expense primero (sin categoría)
+                val result = expenseRepository.insertExpense(
                     expense = ExpenseEntity(
                         userId = userId,
                         name = parsed.merchantName,
@@ -143,25 +136,50 @@ class GmailNotificationListenerService : NotificationListenerService() {
                         date = parsed.date,
                         time = parsed.time,
                         locationName = parsed.location,
-                        source = ExpenseSource.BOLD
+                        source = ExpenseSource.BOLD,
+                        isPendingCategory = true  // Marcado como pendiente hasta categorizar
                     ),
-                    labelIds = listOfNotNull(labelId)
+                    labelIds = emptyList()
                 )
 
-                // Marcar como procesada
-                markAsProcessed(notificationKey)
+                result.fold(
+                    onSuccess = { newExpenseId ->
+                        val expenseId = newExpenseId.toInt()
+                        
+                        // Marcar como procesada antes de categorizar
+                        markAsProcessed(notificationKey)
+                        
+                        // Intentar auto-categorización con Pinecone
+                        val firebaseUid = getFirebaseUid()
+                        val autoCategorizationService = AutoCategorizationService(applicationContext, userId)
+                        val categorized = autoCategorizationService.categorizeExpense(
+                            expenseId = expenseId,
+                            expenseName = parsed.merchantName,
+                            firebaseUid = firebaseUid
+                        )
 
-                // Crear notificación interna
-                val internalNotificationId = "bold_${parsed.transactionId ?: System.currentTimeMillis()}"
-                notificationRepository.upsertNotification(
-                    userId = userId,
-                    notificationId = "bold_imported_$internalNotificationId",
-                    type = "bold_imported",
-                    title = "Bold transaction imported",
-                    body = "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added as an expense."
+                        // Crear notificación interna
+                        val internalNotificationId = "bold_${parsed.transactionId ?: System.currentTimeMillis()}"
+                        val notificationBody = if (categorized) {
+                            "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added and categorized automatically."
+                        } else {
+                            "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added. Please categorize it manually."
+                        }
+                        
+                        notificationRepository.upsertNotification(
+                            userId = userId,
+                            notificationId = "bold_imported_$internalNotificationId",
+                            type = if (categorized) "bold_imported" else "bold_needs_category",
+                            title = "Bold transaction imported",
+                            body = notificationBody
+                        )
+
+                        Log.d(TAG, "Successfully created expense from Bold notification: ${parsed.merchantName} - ${parsed.amount}, Categorized: $categorized")
+                    },
+                    onFailure = { e ->
+                        Log.e(TAG, "Failed to create expense from Bold notification", e)
+                    }
                 )
-
-                Log.d(TAG, "Successfully created expense from Bold notification: ${parsed.merchantName} - ${parsed.amount}")
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing Bold notification", e)
@@ -176,6 +194,18 @@ class GmailNotificationListenerService : NotificationListenerService() {
         val userPrefs = applicationContext.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE)
         val userId = userPrefs.getInt(KEY_LAST_USER_ID, -1)
         return if (userId != -1) userId else null
+    }
+
+    /**
+     * Obtiene el Firebase UID del usuario (si existe)
+     */
+    private fun getFirebaseUid(): String? {
+        // Intentar obtener de Firebase Auth
+        return try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**
@@ -201,30 +231,6 @@ class GmailNotificationListenerService : NotificationListenerService() {
         }
         
         prefs.edit().putStringSet(PROCESSED_NOTIFICATIONS_KEY, limitedKeys).apply()
-    }
-
-    /**
-     * Busca una etiqueta que coincida con el nombre del comercio
-     */
-    private fun findMatchingLabel(
-        merchantName: String,
-        labels: List<com.example.spendantt.data.local.entity.LabelEntity>
-    ): Int? {
-        val lowerMerchant = merchantName.lowercase()
-
-        val foodKeywords = listOf("cafe", "restaurant", "pizza", "burger", "food", "comida", "cafetería", "panadería", "bakery")
-        val transportKeywords = listOf("uber", "didi", "taxi", "bus", "transporte", "gasolina", "gas")
-        val shoppingKeywords = listOf("tienda", "store", "shop", "mall", "centro comercial", "supermercado", "market")
-
-        return when {
-            foodKeywords.any { lowerMerchant.contains(it) } ->
-                labels.firstOrNull { it.name.equals("Food", ignoreCase = true) }?.id
-            transportKeywords.any { lowerMerchant.contains(it) } ->
-                labels.firstOrNull { it.name.equals("Transport", ignoreCase = true) }?.id
-            shoppingKeywords.any { lowerMerchant.contains(it) } ->
-                labels.firstOrNull { it.name.equals("Shopping", ignoreCase = true) }?.id
-            else -> null
-        }
     }
 
     companion object {

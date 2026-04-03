@@ -14,6 +14,7 @@ import com.example.spendantt.data.repository.AppNotification
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.repository.NotificationRepository
+import com.example.spendantt.data.service.AutoCategorizationService
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -21,7 +22,7 @@ import java.util.Date
 import java.util.Locale
 
 class NotificationsViewModel(
-    context: Context,
+    private val context: Context,
     private val userId: Int
 ) : ViewModel() {
     private val database = AppDatabase.getInstance(context)
@@ -97,11 +98,8 @@ class NotificationsViewModel(
 
             val notificationId = "bold_${parsed.transactionId ?: System.currentTimeMillis()}"
 
-            // Buscar etiqueta apropiada basada en el nombre del comercio
-            val labels = labelRepository.getLabelsByUser(userId).first()
-            val labelId = findMatchingLabel(parsed.merchantName, labels)
-
-            expenseRepository.insertExpense(
+            // Crear expense primero (sin categoría)
+            val result = expenseRepository.insertExpense(
                 expense = ExpenseEntity(
                     userId = userId,
                     name = parsed.merchantName,
@@ -109,18 +107,47 @@ class NotificationsViewModel(
                     date = parsed.date,
                     time = parsed.time,
                     locationName = parsed.location,
-                    source = ExpenseSource.BOLD
+                    source = ExpenseSource.BOLD,
+                    isPendingCategory = true
                 ),
-                labelIds = listOfNotNull(labelId)
+                labelIds = emptyList()
             )
 
-            repository.upsertNotification(
-                userId = userId,
-                notificationId = "bold_imported_$notificationId",
-                type = "bold_imported",
-                title = "Bold transaction imported",
-                body = "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added as an expense."
+            result.fold(
+                onSuccess = { newExpenseId ->
+                    val expenseId = newExpenseId.toInt()
+                    
+                    // Intentar auto-categorización con Pinecone
+                    val autoCategorizationService = AutoCategorizationService(
+                        context = context,
+                        userId = userId
+                    )
+                    val categorized = autoCategorizationService.categorizeExpense(
+                        expenseId = expenseId,
+                        expenseName = parsed.merchantName,
+                        firebaseUid = null
+                    )
+
+                    // Notificación según si se categorizó o no
+                    val notificationBody = if (categorized) {
+                        "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added and categorized automatically."
+                    } else {
+                        "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added. Please categorize it manually."
+                    }
+
+                    repository.upsertNotification(
+                        userId = userId,
+                        notificationId = "bold_imported_$notificationId",
+                        type = if (categorized) "bold_imported" else "bold_needs_category",
+                        title = "Bold transaction imported",
+                        body = notificationBody
+                    )
+                },
+                onFailure = { error ->
+                    // Error al crear expense
+                }
             )
+            
             refresh()
         }
     }
@@ -159,27 +186,5 @@ class NotificationsViewModel(
         """.trimIndent()
 
         processBoldTransaction(sampleBoldEmail)
-    }
-
-    /**
-     * Busca una etiqueta que coincida con el nombre del comercio
-     */
-    private fun findMatchingLabel(merchantName: String, labels: List<com.example.spendantt.data.local.entity.LabelEntity>): Int? {
-        val lowerMerchant = merchantName.lowercase()
-        
-        // Palabras clave para categorías comunes
-        val foodKeywords = listOf("cafe", "restaurant", "pizza", "burger", "food", "comida", "cafetería", "panadería", "bakery")
-        val transportKeywords = listOf("uber", "didi", "taxi", "bus", "transporte", "gasolina", "gas")
-        val shoppingKeywords = listOf("tienda", "store", "shop", "mall", "centro comercial", "supermercado", "market")
-        
-        return when {
-            foodKeywords.any { lowerMerchant.contains(it) } -> 
-                labels.firstOrNull { it.name.equals("Food", ignoreCase = true) }?.id
-            transportKeywords.any { lowerMerchant.contains(it) } -> 
-                labels.firstOrNull { it.name.equals("Transport", ignoreCase = true) }?.id
-            shoppingKeywords.any { lowerMerchant.contains(it) } -> 
-                labels.firstOrNull { it.name.equals("Shopping", ignoreCase = true) }?.id
-            else -> null
-        }
     }
 }
