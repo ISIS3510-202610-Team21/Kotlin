@@ -8,11 +8,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseSource
+import com.example.spendantt.data.notifications.BoldTransactionParser
 import com.example.spendantt.data.notifications.PaymentNotificationParser
 import com.example.spendantt.data.repository.AppNotification
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.repository.NotificationRepository
+import com.example.spendantt.data.service.AutoCategorizationService
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -20,7 +22,7 @@ import java.util.Date
 import java.util.Locale
 
 class NotificationsViewModel(
-    context: Context,
+    private val context: Context,
     private val userId: Int
 ) : ViewModel() {
     private val database = AppDatabase.getInstance(context)
@@ -84,5 +86,105 @@ class NotificationsViewModel(
             )
             refresh()
         }
+    }
+
+    /**
+     * Procesa un email de transacción Bold y crea un expense automáticamente
+     * @param emailContent El contenido completo del email de Bold
+     */
+    fun processBoldTransaction(emailContent: String) {
+        viewModelScope.launch {
+            val parsed = BoldTransactionParser.parse(emailContent) ?: return@launch
+
+            val notificationId = "bold_${parsed.transactionId ?: System.currentTimeMillis()}"
+
+            // Crear expense primero (sin categoría)
+            val result = expenseRepository.insertExpense(
+                expense = ExpenseEntity(
+                    userId = userId,
+                    name = parsed.merchantName,
+                    amount = parsed.amount,
+                    date = parsed.date,
+                    time = parsed.time,
+                    locationName = parsed.location,
+                    source = ExpenseSource.BOLD,
+                    isPendingCategory = true
+                ),
+                labelIds = emptyList()
+            )
+
+            result.fold(
+                onSuccess = { newExpenseId ->
+                    val expenseId = newExpenseId.toInt()
+                    
+                    // Intentar auto-categorización con Pinecone
+                    val autoCategorizationService = AutoCategorizationService(
+                        context = context,
+                        userId = userId
+                    )
+                    val categorized = autoCategorizationService.categorizeExpense(
+                        expenseId = expenseId,
+                        expenseName = parsed.merchantName,
+                        firebaseUid = null
+                    )
+
+                    // Notificación según si se categorizó o no
+                    val notificationBody = if (categorized) {
+                        "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added and categorized automatically."
+                    } else {
+                        "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added. Please categorize it manually."
+                    }
+
+                    repository.upsertNotification(
+                        userId = userId,
+                        notificationId = "bold_imported_$notificationId",
+                        type = if (categorized) "bold_imported" else "bold_needs_category",
+                        title = "Bold transaction imported",
+                        body = notificationBody
+                    )
+                },
+                onFailure = { error ->
+                    // Error al crear expense
+                }
+            )
+            
+            refresh()
+        }
+    }
+
+    /**
+     * Simula una transacción Bold con datos de ejemplo
+     */
+    fun simulateBoldExpense() {
+        val sampleBoldEmail = """
+            mí
+            Compra en Rose Cafe por 1000
+            >> Pagos
+            >> Transacción aprobada
+            >> COP $1.000
+            >> Rose Cafe
+            >> 2026/03/27 17:43:42
+            >> Calle 38A sur # 34B - 08, Bogotá D.C.
+            >> 3214776858
+            >> andromedadecolombia@gmail.com
+            >> MID
+            >> 50267756
+            >> Terminal
+            >> ON0CZ862
+            >> ID Transacción Bold	CPRY4OV3JQBY
+            >> Código de autorización	445665
+            >> AID	A0000000041010
+            >> App label	Mastercard
+            >> Metodo de cobro	Datáfono
+            >> Medio de pago	Mastercard ***1719
+            >> Cuotas	1
+            >> Cuenta	Crédito
+            >> Subtotal	$1.000
+            >> Propina	0
+            >> Total COP	$1.000
+            >> Pago sin contacto
+        """.trimIndent()
+
+        processBoldTransaction(sampleBoldEmail)
     }
 }
