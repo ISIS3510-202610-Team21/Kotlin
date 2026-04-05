@@ -620,11 +620,11 @@ private fun startOfDay(timeMillis: Long): Long {
 }
 
 private fun formatWeekday(timeMillis: Long): String {
-    return SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timeMillis))
+    return SimpleDateFormat("EEEE", Locale.ENGLISH).format(Date(timeMillis))
 }
 
 private fun formatFullDate(timeMillis: Long): String {
-    return SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(timeMillis))
+    return SimpleDateFormat("MMM d, yyyy", Locale.ENGLISH).format(Date(timeMillis))
 }
 
 private const val ONE_DAY_MILLIS = 86_400_000L

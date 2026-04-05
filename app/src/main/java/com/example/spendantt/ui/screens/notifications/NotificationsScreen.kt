@@ -367,7 +367,7 @@ private fun notificationSectionLabel(timestamp: Long): String {
             Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) },
             target
         ) -> "Yesterday"
-        else -> SimpleDateFormat("MMMM d", Locale.getDefault()).format(Date(timestamp))
+        else -> SimpleDateFormat("MMMM d", Locale.ENGLISH).format(Date(timestamp))
     }
 }
 
@@ -387,7 +387,7 @@ private fun relativeTimestamp(timestamp: Long): String {
 }
 
 private fun formatNotificationTimestamp(timestamp: Long): String {
-    return SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault())
+    return SimpleDateFormat("MMM d, yyyy h:mm a", Locale.ENGLISH)
         .format(Date(timestamp))
 }
 
