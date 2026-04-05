@@ -46,14 +46,4 @@ data class GoalEntity(
         get() = if (targetAmount > 0)
             ((currentAmount / targetAmount) * 100).toInt().coerceIn(0, 100)
         else 0
-
-    /**
-     * Calcula cuánto debe ahorrar por día para llegar a la meta
-     * Usado en la pantalla "We have a plan"
-     */
-    fun dailySavingsNeeded(): Double {
-        val remaining = targetAmount - currentAmount
-        val daysLeft = ((deadline - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
-        return if (daysLeft > 0) remaining / daysLeft else remaining
-    }
 }

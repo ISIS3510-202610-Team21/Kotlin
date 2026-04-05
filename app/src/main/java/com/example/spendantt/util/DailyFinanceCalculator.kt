@@ -26,6 +26,15 @@ object DailyFinanceCalculator {
         return goal.targetAmount / totalDays.toDouble()
     }
 
+    fun calculateDailySavingsNeeded(goal: GoalEntity, now: Long = System.currentTimeMillis()): Double {
+        val remaining = (goal.targetAmount - goal.currentAmount).coerceAtLeast(0.0)
+        val daysLeft = TimeUnit.MILLISECONDS
+            .toDays(startOfDay(goal.deadline) - startOfDay(now))
+            .coerceAtLeast(0L)
+
+        return if (daysLeft > 0L) remaining / daysLeft.toDouble() else remaining
+    }
+
     fun calculateGoalProgressPercent(goal: GoalEntity): Int {
         return if (goal.targetAmount <= 0.0) 0
         else ((goal.currentAmount / goal.targetAmount) * 100.0).toInt().coerceIn(0, 100)
