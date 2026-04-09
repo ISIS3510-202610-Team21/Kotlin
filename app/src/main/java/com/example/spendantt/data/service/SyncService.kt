@@ -10,6 +10,7 @@ import com.example.spendantt.data.local.entity.IncomeEntity
 import com.example.spendantt.data.local.entity.IncomeType
 import com.example.spendantt.data.local.entity.RecurrenceUnit
 import com.example.spendantt.data.repository.LabelRepository
+import com.example.spendantt.util.AnalyticsHelper
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
@@ -32,7 +33,8 @@ class SyncService(private val context: Context) {
             syncIncomes(firebaseUid, localUserId)
             syncGoals(firebaseUid, localUserId)
         } catch (e: Exception) {
-            // Fallo silencioso
+            AnalyticsHelper.logModuleCrash(context, "SyncService", e.message ?: "unknown")
+
         }
     }
 

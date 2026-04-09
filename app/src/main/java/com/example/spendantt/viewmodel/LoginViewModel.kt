@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.data.service.SyncService
+import com.example.spendantt.util.AnalyticsHelper
 import kotlinx.coroutines.launch
 
 class LoginViewModel(context: Context) : ViewModel() {

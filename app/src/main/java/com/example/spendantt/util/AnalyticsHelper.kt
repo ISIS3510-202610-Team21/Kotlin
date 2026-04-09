@@ -20,6 +20,16 @@ object AnalyticsHelper {
 
     private fun analytics(context: Context) = FirebaseAnalytics.getInstance(context)
 
+
+    // ── BQ1: crash por módulo ─────────────────────────────────
+    fun logModuleCrash(context: Context, moduleName: String, errorMessage: String) {
+        android.util.Log.d("ANALYTICS", "Crash en módulo: $moduleName — $errorMessage")
+        analytics(context).logEvent("module_crash") {
+            param("module_name", moduleName)
+            param("error_message", errorMessage.take(100))
+        }
+    }
+
     // ── BQ2: días desde último gasto ──────────────────────────
     /**
      * Loggea cuántos días han pasado desde el último gasto registrado.
