@@ -7,6 +7,7 @@ import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.repository.PineconeRepository
+import com.example.spendantt.util.AnalyticsHelper
 import kotlinx.coroutines.flow.first
 
 class AutoCategorizationService(
@@ -73,6 +74,8 @@ class AutoCategorizationService(
             }
         } catch (e: Exception) {
             android.util.Log.d("PINECONE", "Error seed: ${e.message}")
+            AnalyticsHelper.logModuleCrash(context, "AutoCategorizationService", e.message ?: "unknown")
+
         }
     }
 

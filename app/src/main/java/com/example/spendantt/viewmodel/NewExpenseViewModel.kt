@@ -15,6 +15,7 @@ import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.service.AutoCategorizationService
 import com.example.spendantt.data.service.AutoCategorizationUsageTracker
+import com.example.spendantt.util.AnalyticsHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -308,6 +309,7 @@ class NewExpenseViewModel(
                     }
                 )
             } catch (e: Exception) {
+                AnalyticsHelper.logModuleCrash(context, "NewExpenseScreen", e.message ?: "unknown")
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
