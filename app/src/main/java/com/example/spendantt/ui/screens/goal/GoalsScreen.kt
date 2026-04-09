@@ -25,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,8 +54,13 @@ private val GoalsEmptyBackground = Color(0xFFF5C333)
 @Composable
 fun GoalsRoute(
     viewModel: GoalsViewModel,
+    onBottomBarVisibilityChange: (Boolean) -> Unit,
     onExit: () -> Unit
 ) {
+    LaunchedEffect(viewModel.isCreatingGoal.value) {
+        onBottomBarVisibilityChange(viewModel.isCreatingGoal.value)
+    }
+
     if (viewModel.isCreatingGoal.value) {
         SetGoalFlowScreen(
             onSaveGoal = { name, targetAmount, deadline, dailyAmount ->
