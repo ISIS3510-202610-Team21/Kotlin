@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,6 +96,7 @@ fun AppNavigation(
     var displayName by remember { mutableStateOf("") }
     var handle by remember { mutableStateOf("") }
     var firebaseUid by remember { mutableStateOf<String?>(null) }
+    var hideGoalsBottomBar by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentUserId) {
         if (currentUserId != null) {
@@ -109,7 +111,7 @@ fun AppNavigation(
         bottomBar = {
             val shouldHideNavBar = routesWithoutNavBar.any { route ->
                 currentRoute == route || currentRoute?.startsWith("$route/") == true
-            }
+            } || (currentRoute == Screen.Goals.route && hideGoalsBottomBar)
             if (!shouldHideNavBar) {
                 BottomNavBar(
                     currentRoute = currentRoute,
@@ -314,8 +316,14 @@ fun AppNavigation(
                 val goalsViewModel = remember(currentUserId) {
                     GoalsViewModel(context, currentUserId, firebaseUid)
                 }
+                DisposableEffect(Unit) {
+                    onDispose { hideGoalsBottomBar = false }
+                }
                 GoalsRoute(
                     viewModel = goalsViewModel,
+                    onBottomBarVisibilityChange = { shouldHide ->
+                        hideGoalsBottomBar = shouldHide
+                    },
                     onExit = {
                         val popped = navController.popBackStack()
                         if (!popped) {

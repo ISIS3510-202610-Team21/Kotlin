@@ -131,15 +131,25 @@ object DailyFinanceCalculator {
             targetByGoalId.forEach { (goalId, target) ->
                 contributions[goalId] = target
             }
-            val leftover = availableForGoals - totalGoalTargets
-            if (leftover > 0.0) {
-                contributions[effectiveSelectedGoalId] =
-                    (contributions[effectiveSelectedGoalId] ?: 0.0) + leftover
-            }
             return contributions
         }
 
-        contributions[effectiveSelectedGoalId] = availableForGoals
+        val selectedTarget = targetByGoalId[effectiveSelectedGoalId] ?: 0.0
+        val selectedContribution = availableForGoals.coerceAtMost(selectedTarget)
+        contributions[effectiveSelectedGoalId] = selectedContribution
+
+        val remainingForOtherGoals = (availableForGoals - selectedContribution).coerceAtLeast(0.0)
+        val otherGoalIds = activeGoals
+            .map { it.id }
+            .filter { it != effectiveSelectedGoalId }
+
+        if (remainingForOtherGoals > 0.0 && otherGoalIds.isNotEmpty()) {
+            val equalShare = remainingForOtherGoals / otherGoalIds.size.toDouble()
+            otherGoalIds.forEach { goalId ->
+                contributions[goalId] = equalShare
+            }
+        }
+
         return contributions
     }
 
