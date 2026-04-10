@@ -5,12 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.example.spendantt.MainActivity
 import com.example.spendantt.R
 import org.json.JSONArray
 import org.json.JSONObject
@@ -87,6 +89,67 @@ class NotificationRepository(context: Context) {
             title = title,
             body = body
         )
+    }
+
+    /**
+     * Posts an in-app notification and a system notification that deep-links to the
+     * expense detail screen so the user can assign a label.
+     */
+    fun upsertNotificationWithExpenseDeepLink(
+        userId: Int,
+        notificationId: String,
+        type: String,
+        title: String,
+        body: String,
+        expenseId: Int
+    ) {
+        val current = getNotifications(userId).toMutableList()
+        if (current.any { it.id == notificationId }) return
+        if (wasSentToSystem(userId, notificationId)) return
+
+        val notification = AppNotification(
+            id = notificationId,
+            userId = userId,
+            type = type,
+            title = title,
+            body = body,
+            createdAt = System.currentTimeMillis(),
+            isRead = false
+        )
+        current.add(notification)
+        saveNotifications(userId, current)
+        postSystemNotificationWithExpenseDeepLink(notification, expenseId)
+        markAsSentToSystem(userId, notificationId)
+        Log.d(TAG, "upsertNotificationWithExpenseDeepLink userId=$userId id=$notificationId expenseId=$expenseId")
+    }
+
+    private fun postSystemNotificationWithExpenseDeepLink(notification: AppNotification, expenseId: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ActivityCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val intent = Intent(appContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NAVIGATE_TO_EXPENSE_ID, expenseId)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            appContext,
+            notification.id.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val systemNotification = NotificationCompat.Builder(appContext, CHANNEL_ID)
+            .setSmallIcon(R.drawable.spendant_logo)
+            .setContentTitle(notification.title)
+            .setContentText(notification.body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(notification.body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        NotificationManagerCompat.from(appContext).notify(notification.id.hashCode(), systemNotification)
     }
 
     private fun upsertNotificationInternal(
@@ -373,5 +436,6 @@ class NotificationRepository(context: Context) {
         private const val CHANNEL_ID = "spendant_notifications"
         private const val FUTURE_GRACE_MILLIS = 60_000L
         private const val THIRTY_MINUTES_MILLIS = 30L * 60L * 1000L
+        const val EXTRA_NAVIGATE_TO_EXPENSE_ID = "navigate_to_expense_id"
     }
 }

@@ -86,6 +86,8 @@ fun AppNavigation(
     hasLoggedInOnce: Boolean = false,
     lastUserDisplayName: String = "",
     canUseBiometric: Boolean = false,
+    pendingExpenseId: Int? = null,
+    onExpenseNavigationConsumed: () -> Unit = {},
     onFingerprintClick: () -> Unit = {},
     onLoginSuccess: (Int) -> Unit,
     onLogout: () -> Unit = {}
@@ -106,6 +108,16 @@ fun AppNavigation(
             displayName = user?.displayName ?: user?.username ?: ""
             handle = user?.handle ?: "@${user?.username ?: ""}"
             firebaseUid = user?.firebaseUid
+        }
+    }
+
+    // Navigate to expense detail when launched from a Bold notification
+    LaunchedEffect(pendingExpenseId, currentUserId) {
+        if (pendingExpenseId != null && currentUserId != null) {
+            navController.navigate("${Screen.ExpenseDetail.route}/$pendingExpenseId") {
+                launchSingleTop = true
+            }
+            onExpenseNavigationConsumed()
         }
     }
 
@@ -282,7 +294,7 @@ fun AppNavigation(
                 val expenseId = backStackEntry.arguments?.getString("expenseId")?.toIntOrNull()
                     ?: return@composable
                 val expenseDetailViewModel = remember(currentUserId, expenseId, firebaseUid) {
-                    ExpenseDetailViewModel(context, expenseId, firebaseUid)
+                    ExpenseDetailViewModel(context, expenseId, currentUserId, firebaseUid)
                 }
                 ExpenseDetailScreen(
                     viewModel = expenseDetailViewModel,

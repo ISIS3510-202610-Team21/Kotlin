@@ -1,6 +1,7 @@
 package com.example.spendantt
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.spendantt.data.local.AppDatabase
+import com.example.spendantt.data.repository.NotificationRepository
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.data.service.IcsImportService
 import com.example.spendantt.ui.navigation.AppNavigation
@@ -19,8 +21,11 @@ import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
 import com.example.spendantt.work.NotificationSyncScheduler
 import com.example.spendantt.work.NotificationTimeSanitizer
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : AppCompatActivity() {
+
+    private val pendingExpenseId = MutableStateFlow<Int?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,6 +34,11 @@ class MainActivity : AppCompatActivity() {
         NotificationTimeSanitizer.sanitizeIfNeeded(this, "app_create")
         NotificationSyncScheduler.schedulePeriodic(this)
 
+        // Handle deep link from Bold expense notification
+        intent?.getIntExtra(NotificationRepository.EXTRA_NAVIGATE_TO_EXPENSE_ID, -1)
+            ?.takeIf { it != -1 }
+            ?.let { pendingExpenseId.value = it }
+
         val activity = this
 
         setContent {
@@ -36,6 +46,7 @@ class MainActivity : AppCompatActivity() {
                 val prefs = remember {
                     activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 }
+                val expenseIdToNavigate by pendingExpenseId.collectAsState()
 
                 val currentUserId = remember { mutableStateOf<Int?>(null) }
                 val hasLoggedInOnce = remember {
@@ -79,6 +90,8 @@ class MainActivity : AppCompatActivity() {
                     hasLoggedInOnce = hasLoggedInOnce.value,
                     lastUserDisplayName = lastUserDisplayName,
                     canUseBiometric = canUseBiometric,
+                    pendingExpenseId = expenseIdToNavigate,
+                    onExpenseNavigationConsumed = { pendingExpenseId.value = null },
                     onFingerprintClick = {
                         authenticateWithFingerprint(
                             onAuthenticated = {
@@ -113,6 +126,13 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getIntExtra(NotificationRepository.EXTRA_NAVIGATE_TO_EXPENSE_ID, -1)
+            .takeIf { it != -1 }
+            ?.let { pendingExpenseId.value = it }
     }
 
     override fun onResume() {
