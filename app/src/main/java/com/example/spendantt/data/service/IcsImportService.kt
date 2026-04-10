@@ -99,6 +99,10 @@ class IcsImportService(
         }
     }
 
+    fun hasImportedEvents(userId: Int): Boolean {
+        return getImportedEvents(userId).isNotEmpty()
+    }
+
     private fun isValidIcsUri(uri: Uri): Boolean {
         val uriString = uri.toString().lowercase(Locale.getDefault())
         val displayName = appContext.contentResolver.query(uri, arrayOf("_display_name"), null, null, null)

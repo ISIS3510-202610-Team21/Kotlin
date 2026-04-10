@@ -29,7 +29,8 @@ fun LabelsScreen(
     selectedLabelIds: Set<Int>,
     onLabelToggle: (LabelEntity) -> Unit,
     onDone: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    showHeader: Boolean = true
 ) {
     Box(
         modifier = Modifier
@@ -39,31 +40,32 @@ fun LabelsScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Header
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(SpendAntGreen)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.align(Alignment.CenterStart)
+            if (showHeader) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SpendAntGreen)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = SpendAntBlack
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.align(Alignment.CenterStart)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = SpendAntBlack
+                        )
+                    }
+                    Text(
+                        text = "Labels",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = SpendAntFontFamily,
+                        color = SpendAntBlack,
+                        modifier = Modifier.align(Alignment.Center)
                     )
                 }
-                Text(
-                    text = "Labels",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = SpendAntFontFamily,
-                    color = SpendAntBlack,
-                    modifier = Modifier.align(Alignment.Center)
-                )
             }
 
             // Content

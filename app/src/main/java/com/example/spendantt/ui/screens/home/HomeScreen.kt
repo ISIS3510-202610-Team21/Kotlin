@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -11,8 +12,10 @@ import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -52,6 +55,7 @@ import java.util.Date
 import java.util.LinkedHashMap
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -79,30 +83,36 @@ fun HomeScreen(
 
     HomeScreenContent(
         isLoading = viewModel.isLoading.value,
+        isRefreshing = viewModel.isRefreshing.value,
         dailyBudget = viewModel.dailyBudget.value,
         monthlyExpenses = viewModel.monthlyExpenses.value,
         categoryExpenses = viewModel.categoryExpenses.value,
         allExpenses = viewModel.allExpenses.value,
         unreadNotificationsCount = viewModel.unreadNotificationsCount.value,
+        onRefresh = viewModel::syncFromRemote,
         onNotificationsClick = onNotificationsClick,
         onLogoutClick = onLogoutClick,
         onExpenseClick = onExpenseClick
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreenContent(
     isLoading: Boolean,
+    isRefreshing: Boolean,
     dailyBudget: Double,
     monthlyExpenses: Double,
     categoryExpenses: Map<String, Double>,
     allExpenses: List<ExpenseWithLabels>,
     unreadNotificationsCount: Int,
+    onRefresh: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
     onExpenseClick: (Int) -> Unit = {}
 ) {
     val expenseSections = rememberExpenseSections(allExpenses)
+    val listState = rememberLazyListState()
 
     // Colores priorizados para las categorías
     val priorityColors = listOf(
@@ -136,187 +146,182 @@ private fun HomeScreenContent(
         return
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White),
-        contentPadding = PaddingValues(bottom = 110.dp)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Header verde con "Home"
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(SpendAntGreenv2)
-                    .padding(horizontal = 20.dp, vertical = 18.dp)
-            ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            contentPadding = PaddingValues(bottom = 110.dp)
+        ) {
+            item {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .clickable(onClick = onNotificationsClick)
+                        .fillMaxWidth()
+                        .background(SpendAntGreenv2)
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Notifications,
-                        contentDescription = "Notifications",
-                        tint = Color.Black,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    if (unreadNotificationsCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 8.dp, y = (-6).dp)
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .background(Color.Red),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = unreadNotificationsCount.coerceAtMost(99).toString(),
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.wrapContentSize(Alignment.Center)
-                            )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .clickable(onClick = onNotificationsClick)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Notifications,
+                            contentDescription = "Notifications",
+                            tint = Color.Black,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        if (unreadNotificationsCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 8.dp, y = (-6).dp)
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Red),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = unreadNotificationsCount.coerceAtMost(99).toString(),
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.wrapContentSize(Alignment.Center)
+                                )
+                            }
                         }
                     }
-                }
-                Text(
-                    text = "Home",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = SpendAntFontFamily,
-                    color = Color.Black,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ExitToApp,
-                    contentDescription = "Logout",
-                    tint = Color.Black,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .size(24.dp)
-                        .clickable(onClick = onLogoutClick)
-                )
-
-
-
-            }
-        }
-
-        // Your Budget for today
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
-            ) {
-                Text(
-                    text = "Your Budget for today",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = SpendAntFontFamily,
-                    color = Color.Gray
-                )
-                Row(
-                    verticalAlignment = Alignment.Bottom
-                ) {
                     Text(
-                        text = "$${DecimalFormat("#,##0").format(dailyBudget)}",
-                        fontSize = 48.sp,
+                        text = "Home",
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = SpendAntFontFamily,
-                        color = SpendAntGreenv2
+                        color = Color.Black,
+                        modifier = Modifier.align(Alignment.Center)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ExitToApp,
+                        contentDescription = "Logout",
+                        tint = Color.Black,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(24.dp)
+                            .clickable(onClick = onLogoutClick)
+                    )
+                }
+            }
+
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                ) {
                     Text(
-                        text = "COP",
-                        fontSize = 20.sp,
+                        text = "Your Budget for today",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = SpendAntFontFamily,
+                        color = Color.Gray
+                    )
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = "$${DecimalFormat("#,##0").format(dailyBudget)}",
+                            fontSize = 48.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = SpendAntFontFamily,
+                            color = SpendAntGreenv2
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "COP",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = SpendAntFontFamily,
+                            color = Color.Black,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp)
+                ) {
+                    Text(
+                        text = "This month you have expended",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = SpendAntFontFamily,
+                        color = Color.Gray
+                    )
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = "$${DecimalFormat("#,##0").format(monthlyExpenses)}",
+                            fontSize = 48.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = SpendAntFontFamily,
+                            color = Color.Red
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "COP",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = SpendAntFontFamily,
+                            color = Color.Red,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            item {
+                CategoryBarChart(
+                    categoryExpenses = categoryExpenses,
+                    categoryColorMap = categoryColorMap,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+            }
+
+            expenseSections.forEach { section ->
+                item(key = "header_${section.title}") {
+                    Text(
+                        text = "${section.title} Expenses",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         fontFamily = SpendAntFontFamily,
                         color = Color.Black,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 12.dp)
+                    )
+                }
+
+                items(
+                    count = section.expenses.size,
+                    key = { index -> section.expenses[index].expense.id }
+                ) { index ->
+                    ExpenseCard(
+                        expense = section.expenses[index],
+                        categoryColorMap = categoryColorMap,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                        onClick = { onExpenseClick(section.expenses[index].expense.id) }
                     )
                 }
             }
-        }
 
-        // This month you have expended
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 20.dp)
-            ) {
-                Text(
-                    text = "This month you have expended",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = SpendAntFontFamily,
-                    color = Color.Gray
-                )
-                Row(
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    Text(
-                        text = "$${DecimalFormat("#,##0").format(monthlyExpenses)}",
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = SpendAntFontFamily,
-                        color = Color.Red
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "COP",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = SpendAntFontFamily,
-                        color = Color.Red,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
+            item {
+                Spacer(modifier = Modifier.height(32.dp))
             }
-        }
-
-        // Category Bar Chart
-        item {
-            CategoryBarChart(
-                categoryExpenses = categoryExpenses,
-                categoryColorMap = categoryColorMap,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-        }
-
-        // Expense Sections
-        expenseSections.forEach { section ->
-            item(key = "header_${section.title}") {
-                Text(
-                    text = "${section.title} Expenses",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = SpendAntFontFamily,
-                    color = Color.Black,
-                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 12.dp)
-                )
-            }
-
-            items(
-                count = section.expenses.size,
-                key = { index -> section.expenses[index].expense.id }
-            ) { index ->
-                ExpenseCard(
-                    expense = section.expenses[index],
-                    categoryColorMap = categoryColorMap,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                    onClick = { onExpenseClick(section.expenses[index].expense.id) }
-                )
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -551,6 +556,7 @@ fun HomeScreenPreview() {
 
     HomeScreenContent(
         isLoading = false,
+        isRefreshing = false,
         dailyBudget = 25500.0,
         monthlyExpenses = 750000.0,
         categoryExpenses = mapOf(

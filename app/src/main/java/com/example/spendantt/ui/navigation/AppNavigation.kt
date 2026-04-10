@@ -52,6 +52,7 @@ sealed class Screen(val route: String) {
     object Onboarding2 : Screen("onboarding2")
     object Onboarding3 : Screen("onboarding3")
     object Onboarding4 : Screen("onboarding4")
+    object CalendarImportGate : Screen("calendar_import_gate")
     object Home : Screen("home")
     object Profile : Screen("profile")
     object EditProfile : Screen("edit_profile")
@@ -70,6 +71,7 @@ private val routesWithoutNavBar = listOf(
     Screen.Onboarding2.route,
     Screen.Onboarding3.route,
     Screen.Onboarding4.route,
+    Screen.CalendarImportGate.route,
     Screen.NewExpense.route,
     Screen.ExpenseDetail.route,
     Screen.EditProfile.route,
@@ -206,6 +208,25 @@ fun AppNavigation(
                 OnboardingScreen4(
                     onAllowLocation = { onLoginSuccess(userId) },
                     onSkip = { onLoginSuccess(userId) }
+                )
+            }
+
+            composable("${Screen.CalendarImportGate.route}/{userId}") { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+                OnboardingScreen2(
+                    userId = userId,
+                    onImportSuccess = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.CalendarImportGate.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onSkip = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.CalendarImportGate.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
 

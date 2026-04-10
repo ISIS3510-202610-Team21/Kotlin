@@ -15,6 +15,7 @@ import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.data.repository.NotificationRepository
 import com.example.spendantt.data.repository.SpendingHistoryRepository
+import com.example.spendantt.data.service.SyncService
 import com.example.spendantt.util.DailyFinanceCalculator
 import com.example.spendantt.util.SpendingAnomalyCalculator
 import kotlinx.coroutines.flow.collectLatest
@@ -32,6 +33,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private val spendingHistoryRepository: SpendingHistoryRepository
     private val goalPreferences: GoalPreferences
     private val database: AppDatabase
+    private val syncService: SyncService
 
     private val _dailyBudget = mutableStateOf(0.0)
     val dailyBudget: State<Double> = _dailyBudget
@@ -51,6 +53,9 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
 
+    private val _isRefreshing = mutableStateOf(false)
+    val isRefreshing: State<Boolean> = _isRefreshing
+
     private val _errorMessage = mutableStateOf("")
     val errorMessage: State<String> = _errorMessage
 
@@ -68,6 +73,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         notificationRepository = NotificationRepository(context)
         spendingHistoryRepository = SpendingHistoryRepository(context)
         goalPreferences = GoalPreferences(context)
+        syncService = SyncService(context)
         loadHomeData()
         loadUserName()
     }
@@ -113,6 +119,25 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
     fun refreshUnreadNotificationsCount() {
         _unreadNotificationsCount.value = notificationRepository.getUnreadCount(userId)
         Log.d(TAG, "refreshUnreadNotificationsCount userId=$userId unread=${_unreadNotificationsCount.value}")
+    }
+
+    fun syncFromRemote() {
+        if (_isRefreshing.value) return
+
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                val firebaseUid = database.userDao().getUserById(userId)?.firebaseUid
+                if (!firebaseUid.isNullOrBlank()) {
+                    syncService.syncUserData(firebaseUid, userId)
+                }
+                refreshDailyBudget()
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Error syncing data"
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     fun markNotificationsAsRead() {
