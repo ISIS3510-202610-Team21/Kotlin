@@ -13,6 +13,7 @@ import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
+import com.example.spendantt.data.service.IcsImportService
 import com.example.spendantt.ui.navigation.AppNavigation
 import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
@@ -58,6 +59,19 @@ class MainActivity : AppCompatActivity() {
                 val canUseBiometric = hasLoggedInOnce.value && canUseFingerprint(activity)
                 val navController = rememberNavController()
 
+                fun navigateAfterAuthentication(userId: Int) {
+                    val hasImportedCalendar = IcsImportService(activity).hasImportedEvents(userId)
+                    val destination = if (hasImportedCalendar) {
+                        Screen.Home.route
+                    } else {
+                        "${Screen.CalendarImportGate.route}/$userId"
+                    }
+
+                    navController.navigate(destination) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                }
+
                 AppNavigation(
                     navController = navController,
                     context = activity,
@@ -71,9 +85,7 @@ class MainActivity : AppCompatActivity() {
                                 val userId = lastUserId.value
                                 if (userId != null) {
                                     currentUserId.value = userId
-                                    navController.navigate(Screen.Home.route) {
-                                        popUpTo(Screen.Welcome.route) { inclusive = true }
-                                    }
+                                    navigateAfterAuthentication(userId)
                                 }
                             },
                             onFailedAttempt = {},
@@ -93,9 +105,7 @@ class MainActivity : AppCompatActivity() {
                         NotificationSyncScheduler.schedulePeriodic(activity)
                         NotificationSyncScheduler.enqueueImmediate(activity, "login_success")
                         NotificationSyncScheduler.enqueueHabitFixerImmediate(activity, "login_success")
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Welcome.route) { inclusive = true }
-                        }
+                        navigateAfterAuthentication(userId)
                     },
                     onLogout = {
                         currentUserId.value = null

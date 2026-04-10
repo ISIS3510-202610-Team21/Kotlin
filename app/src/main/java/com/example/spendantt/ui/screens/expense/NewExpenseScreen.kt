@@ -213,7 +213,8 @@ private fun LabelPromptScreen(
                     selectedLabelIds = uiState.selectedLabelIds,
                     onLabelToggle = { label -> viewModel.toggleLabel(label) },
                     onDone = { viewModel.savePendingLabels() },
-                    onClose = { viewModel.dismissLabelPrompt() }
+                    onClose = { viewModel.dismissLabelPrompt() },
+                    showHeader = false
                 )
             }
         }

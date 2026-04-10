@@ -14,8 +14,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
 import com.example.spendantt.ui.components.IncomeCard
-import com.example.spendantt.ui.components.SpendAntButton
 import com.example.spendantt.ui.components.SpendAntHeader
+import com.example.spendantt.ui.screens.goal.GoalActionButton
 import com.example.spendantt.ui.theme.*
 import com.example.spendantt.viewmodel.BudgetViewModel
 
@@ -98,9 +98,10 @@ fun BudgetAndIncomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 16.dp)
+                .padding(horizontal = 32.dp, vertical = 16.dp),
+            contentAlignment = Alignment.Center
         ) {
-            SpendAntButton(
+            GoalActionButton(
                 text = "New Income",
                 onClick = onNewIncome
             )

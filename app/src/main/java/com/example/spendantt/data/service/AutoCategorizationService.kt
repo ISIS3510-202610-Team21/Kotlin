@@ -26,19 +26,17 @@ class AutoCategorizationService(
         expenseName: String,
         firebaseUid: String? = null
     ): Boolean {
-        if (!hasInternet()) return false
+        val strategy = if (hasInternet()) {
+            OnlinePineconeCategorizationStrategy()
+        } else {
+            OfflineCategorizationStrategy()
+        }
 
-        ensurePineconeSeeded()
-
-        val labelName = pineconeRepository.findLabelForExpense(expenseName) ?: return false
-
-        val labels = labelRepository.getLabelsByUser(userId).first()
-        val matchedLabel = labels.firstOrNull {
-            it.name.lowercase() == labelName.lowercase()
-        } ?: return false
-
-        expenseRepository.categorizeExpense(expenseId, matchedLabel.id, firebaseUid)
-        return true
+        return strategy.categorizeExpense(
+            expenseId = expenseId,
+            expenseName = expenseName,
+            firebaseUid = firebaseUid
+        )
     }
 
     suspend fun assignLabelManually(
@@ -84,5 +82,43 @@ class AutoCategorizationService(
         val network = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private interface AutoCategorizationStrategy {
+        suspend fun categorizeExpense(
+            expenseId: Int,
+            expenseName: String,
+            firebaseUid: String?
+        ): Boolean
+    }
+
+    private inner class OnlinePineconeCategorizationStrategy : AutoCategorizationStrategy {
+        override suspend fun categorizeExpense(
+            expenseId: Int,
+            expenseName: String,
+            firebaseUid: String?
+        ): Boolean {
+            ensurePineconeSeeded()
+
+            val labelName = pineconeRepository.findLabelForExpense(expenseName) ?: return false
+
+            val labels = labelRepository.getLabelsByUser(userId).first()
+            val matchedLabel = labels.firstOrNull {
+                it.name.lowercase() == labelName.lowercase()
+            } ?: return false
+
+            expenseRepository.categorizeExpense(expenseId, matchedLabel.id, firebaseUid)
+            return true
+        }
+    }
+
+    private class OfflineCategorizationStrategy : AutoCategorizationStrategy {
+        override suspend fun categorizeExpense(
+            expenseId: Int,
+            expenseName: String,
+            firebaseUid: String?
+        ): Boolean {
+            return false
+        }
     }
 }
