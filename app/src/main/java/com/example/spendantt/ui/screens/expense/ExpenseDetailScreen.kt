@@ -44,8 +44,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spendantt.ui.screens.labels.LabelsScreen
 import com.example.spendantt.ui.theme.SpendAntBlack
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreen
@@ -64,6 +66,33 @@ fun ExpenseDetailScreen(
     val context = LocalContext.current
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var isMapPickerOpen by remember { mutableStateOf(false) }
+    var showLabelEditor by remember { mutableStateOf(false) }
+
+    // Label editor (accessible via tapping the label badge)
+    if (showLabelEditor) {
+        LabelsScreen(
+            labelsGroupedByCategory = uiState.labelsGroupedByCategory,
+            selectedLabelIds = uiState.selectedLabelIds,
+            onLabelToggle = { viewModel.toggleLabel(it) },
+            onDone = { showLabelEditor = false },
+            onClose = { showLabelEditor = false }
+        )
+        return
+    }
+
+    // Show label picker when expense has no category (e.g. imported from Bold notification)
+    if (uiState.showLabelPicker) {
+        BoldLabelPromptScreen(
+            expenseName = uiState.name,
+            labelsGroupedByCategory = uiState.labelsGroupedByCategory,
+            selectedLabelIds = uiState.selectedLabelIds,
+            isSaving = uiState.isSavingLabel,
+            onLabelToggle = { viewModel.toggleLabel(it) },
+            onDone = { viewModel.savePendingLabel() },
+            onDismiss = { viewModel.dismissLabelPicker() }
+        )
+        return
+    }
 
     if (isMapPickerOpen) {
         MapPickerScreen(
@@ -133,7 +162,10 @@ fun ExpenseDetailScreen(
                         )
                     }
                 } else {
-                    val labelsText = expenseWithLabels.labels.joinToString { it.name }.ifEmpty { "No label" }
+                    val labelsText = uiState.allLabels
+                        .filter { it.id in uiState.selectedLabelIds }
+                        .joinToString { it.name }
+                        .ifEmpty { "No label — tap to add" }
 
                     Spacer(modifier = Modifier.height(96.dp))
 
@@ -160,7 +192,7 @@ fun ExpenseDetailScreen(
 
                         Box(
                             modifier = Modifier
-                                .clickable(enabled = false) {}
+                                .clickable { showLabelEditor = true }
                                 .background(SpendAntGreen, RoundedCornerShape(50.dp))
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
@@ -337,6 +369,97 @@ private fun RegretExpenseReadonlyRow(
             fontFamily = SpendAntFontFamily,
             fontSize = 14.sp
         )
+    }
+}
+
+@Composable
+private fun BoldLabelPromptScreen(
+    expenseName: String,
+    labelsGroupedByCategory: Map<String, List<com.example.spendantt.data.local.entity.LabelEntity>>,
+    selectedLabelIds: Set<Int>,
+    isSaving: Boolean,
+    onLabelToggle: (com.example.spendantt.data.local.entity.LabelEntity) -> Unit,
+    onDone: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SpendAntWhite)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SpendAntGreen)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss",
+                        tint = SpendAntBlack
+                    )
+                }
+                Text(
+                    text = "Add Label",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
+                    color = SpendAntBlack,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Hey! We couldn't categorize \"$expenseName\".",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = SpendAntFontFamily,
+                    color = SpendAntBlack,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Add a label so we can learn for next time!",
+                    fontSize = 14.sp,
+                    color = Color(0xFF666666),
+                    fontFamily = SpendAntFontFamily,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                LabelsScreen(
+                    labelsGroupedByCategory = labelsGroupedByCategory,
+                    selectedLabelIds = selectedLabelIds,
+                    onLabelToggle = onLabelToggle,
+                    onDone = onDone,
+                    onClose = onDismiss,
+                    showHeader = false
+                )
+            }
+        }
+
+        if (isSaving) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.25f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = SpendAntGreen)
+            }
+        }
     }
 }
 

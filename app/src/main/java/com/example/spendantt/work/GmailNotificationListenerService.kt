@@ -8,6 +8,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.example.spendantt.data.local.AppDatabase
+import com.example.spendantt.data.local.dao.UserDao
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseSource
 import com.example.spendantt.data.notifications.BoldTransactionParser
@@ -29,6 +30,7 @@ class GmailNotificationListenerService : NotificationListenerService() {
     private lateinit var expenseRepository: ExpenseRepository
     private lateinit var notificationRepository: NotificationRepository
     private lateinit var prefs: SharedPreferences
+    private lateinit var userDao: UserDao
 
     override fun onCreate() {
         super.onCreate()
@@ -36,6 +38,7 @@ class GmailNotificationListenerService : NotificationListenerService() {
         expenseRepository = ExpenseRepository(database.expenseDao(), database.labelDao())
         notificationRepository = NotificationRepository(applicationContext)
         prefs = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        userDao = database.userDao()
         Log.d(TAG, "GmailNotificationListenerService created")
     }
 
@@ -127,6 +130,8 @@ class GmailNotificationListenerService : NotificationListenerService() {
                     return@launch
                 }
 
+                val firebaseUid = getFirebaseUid(userId)
+
                 // Crear el expense primero (sin categoría)
                 val result = expenseRepository.insertExpense(
                     expense = ExpenseEntity(
@@ -139,18 +144,18 @@ class GmailNotificationListenerService : NotificationListenerService() {
                         source = ExpenseSource.BOLD,
                         isPendingCategory = true  // Marcado como pendiente hasta categorizar
                     ),
-                    labelIds = emptyList()
+                    labelIds = emptyList(),
+                    firebaseUid = firebaseUid
                 )
 
                 result.fold(
                     onSuccess = { newExpenseId ->
                         val expenseId = newExpenseId.toInt()
-                        
+
                         // Marcar como procesada antes de categorizar
                         markAsProcessed(notificationKey)
-                        
+
                         // Intentar auto-categorización con Pinecone
-                        val firebaseUid = getFirebaseUid()
                         val autoCategorizationService = AutoCategorizationService(applicationContext, userId)
                         val categorized = autoCategorizationService.categorizeExpense(
                             expenseId = expenseId,
@@ -158,21 +163,28 @@ class GmailNotificationListenerService : NotificationListenerService() {
                             firebaseUid = firebaseUid
                         )
 
-                        // Crear notificación interna
                         val internalNotificationId = "bold_${parsed.transactionId ?: System.currentTimeMillis()}"
-                        val notificationBody = if (categorized) {
-                            "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added and categorized automatically."
+
+                        if (categorized) {
+                            // Categorizado exitosamente: notificación informativa normal
+                            notificationRepository.upsertNotification(
+                                userId = userId,
+                                notificationId = "bold_imported_$internalNotificationId",
+                                type = "bold_imported",
+                                title = "Bold transaction imported",
+                                body = "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added and categorized automatically."
+                            )
                         } else {
-                            "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added. Please categorize it manually."
+                            // Sin categoría: notificación con deep link a la pantalla de edición
+                            notificationRepository.upsertNotificationWithExpenseDeepLink(
+                                userId = userId,
+                                notificationId = "bold_imported_$internalNotificationId",
+                                type = "bold_needs_category",
+                                title = "Tap to categorize your expense",
+                                body = "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added. Tap to assign a label.",
+                                expenseId = expenseId
+                            )
                         }
-                        
-                        notificationRepository.upsertNotification(
-                            userId = userId,
-                            notificationId = "bold_imported_$internalNotificationId",
-                            type = if (categorized) "bold_imported" else "bold_needs_category",
-                            title = "Bold transaction imported",
-                            body = notificationBody
-                        )
 
                         Log.d(TAG, "Successfully created expense from Bold notification: ${parsed.merchantName} - ${parsed.amount}, Categorized: $categorized")
                     },
@@ -197,14 +209,19 @@ class GmailNotificationListenerService : NotificationListenerService() {
     }
 
     /**
-     * Obtiene el Firebase UID del usuario (si existe)
+     * Obtiene el Firebase UID del usuario desde Room DB (igual que el registro manual),
+     * con Firebase Auth como fallback.
      */
-    private fun getFirebaseUid(): String? {
-        // Intentar obtener de Firebase Auth
+    private suspend fun getFirebaseUid(userId: Int): String? {
         return try {
-            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            userDao.getUserById(userId)?.firebaseUid
+                ?: com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
         } catch (e: Exception) {
-            null
+            try {
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 

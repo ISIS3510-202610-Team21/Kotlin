@@ -9,8 +9,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseEntity
+import com.example.spendantt.data.local.entity.LabelEntity
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
 import com.example.spendantt.data.repository.ExpenseRepository
+import com.example.spendantt.data.repository.LabelRepository
+import com.example.spendantt.data.service.AutoCategorizationService
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -33,23 +37,32 @@ data class ExpenseDetailUiState(
     val isDeleting: Boolean = false,
     val isDeleted: Boolean = false,
     val isSaved: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val allLabels: List<LabelEntity> = emptyList(),
+    val labelsGroupedByCategory: Map<String, List<LabelEntity>> = emptyMap(),
+    val selectedLabelIds: Set<Int> = emptySet(),
+    val showLabelPicker: Boolean = false,
+    val isSavingLabel: Boolean = false
 )
 
 class ExpenseDetailViewModel(
     private val context: Context,
     private val expenseId: Int,
+    private val userId: Int,
     private val firebaseUid: String?
 ) : ViewModel() {
 
     private val database = AppDatabase.getInstance(context)
     private val repository = ExpenseRepository(database.expenseDao(), database.labelDao())
+    private val labelRepository = LabelRepository(database.labelDao())
+    private val autoCategorizationService = AutoCategorizationService(context, userId)
 
     private val _uiState = mutableStateOf(ExpenseDetailUiState())
     val uiState: State<ExpenseDetailUiState> = _uiState
 
     init {
         loadExpense()
+        loadLabels()
     }
 
     fun loadExpense() {
@@ -67,9 +80,58 @@ class ExpenseDetailViewModel(
                 longitude = expense?.expense?.longitude,
                 regretExpense = expense?.expense?.isRecurring ?: false,
                 isLoading = false,
-                error = if (expense == null) "Expense not found" else null
+                error = if (expense == null) "Expense not found" else null,
+                selectedLabelIds = expense?.labels?.map { it.id }?.toSet() ?: emptySet(),
+                showLabelPicker = expense != null &&
+                        expense.expense.isPendingCategory &&
+                        expense.labels.isEmpty()
             )
         }
+    }
+
+    private fun loadLabels() {
+        viewModelScope.launch {
+            labelRepository.getLabelsByUser(userId).collect { labels ->
+                val grouped = labels.groupBy { it.category ?: "Other" }
+                _uiState.value = _uiState.value.copy(
+                    allLabels = labels,
+                    labelsGroupedByCategory = grouped
+                )
+            }
+        }
+    }
+
+    fun toggleLabel(label: LabelEntity) {
+        val currentIds = _uiState.value.selectedLabelIds.toMutableSet()
+        if (currentIds.contains(label.id)) currentIds.remove(label.id) else currentIds.add(label.id)
+        _uiState.value = _uiState.value.copy(selectedLabelIds = currentIds)
+    }
+
+    fun savePendingLabel() {
+        val state = _uiState.value
+        val labelId = state.selectedLabelIds.firstOrNull() ?: return
+        viewModelScope.launch {
+            _uiState.value = state.copy(isSavingLabel = true)
+            try {
+                autoCategorizationService.assignLabelManually(
+                    expenseId = expenseId,
+                    labelId = labelId,
+                    expenseName = state.name,
+                    firebaseUid = firebaseUid
+                )
+                _uiState.value = _uiState.value.copy(
+                    isSavingLabel = false,
+                    isSaved = true,
+                    showLabelPicker = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isSavingLabel = false, error = e.message)
+            }
+        }
+    }
+
+    fun dismissLabelPicker() {
+        _uiState.value = _uiState.value.copy(showLabelPicker = false)
     }
 
     fun onNameChange(value: String) {
@@ -131,12 +193,15 @@ class ExpenseDetailViewModel(
                 longitude = state.longitude,
                 isRecurring = state.regretExpense
             )
-            val labelIds = state.expense?.labels?.map { it.id } ?: emptyList()
-            val result = repository.updateExpense(updatedExpense, labelIds, firebaseUid)
+            val labelIds = state.selectedLabelIds.toList()
+            val expenseWithUpdatedCategory = updatedExpense.copy(
+                isPendingCategory = labelIds.isEmpty()
+            )
+            val result = repository.updateExpense(expenseWithUpdatedCategory, labelIds, firebaseUid)
             result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
-                        expense = state.expense?.copy(expense = updatedExpense),
+                        expense = state.expense?.copy(expense = expenseWithUpdatedCategory),
                         isSaving = false,
                         isSaved = true
                     )
