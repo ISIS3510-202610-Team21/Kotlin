@@ -41,15 +41,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
+import com.example.spendantt.ui.components.SpendAntHeader
 import com.example.spendantt.ui.theme.SpendAntGreen
-import com.example.spendantt.ui.theme.SpendAntGreenLight
+import com.example.spendantt.ui.theme.SpendAntTextSecondary
+import com.example.spendantt.ui.theme.SpendAntWhite
 import com.example.spendantt.viewmodel.GoalListItemUiState
 import com.example.spendantt.viewmodel.GoalsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private val GoalsEmptyBackground = Color(0xFFF5C333)
 
 @Composable
 fun GoalsRoute(
@@ -95,30 +95,13 @@ fun GoalsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFEAEAEA))
+            .background(SpendAntWhite)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(SpendAntGreen)
-                .padding(horizontal = 24.dp, vertical = 20.dp)
-        ) {
-            Text(
-                text = "x",
-                fontSize = 24.sp,
-                color = Color.Black,
-                modifier = Modifier.clickable(onClick = onExit)
-            )
-            Text(
-                text = "Goals",
-                fontSize = 30.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.Black,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = 8.dp)
-            )
-        }
+        SpendAntHeader(
+            title = "Goals",
+            onClose = onExit,
+            onConfirm = onExit
+        )
 
         if (isLoading) {
             Box(
@@ -206,7 +189,7 @@ private fun EmptyGoalsState(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(GoalsEmptyBackground)
+            .background(SpendAntWhite)
             .padding(horizontal = 24.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -215,7 +198,7 @@ private fun EmptyGoalsState(
         Image(
             painter = painterResource(id = R.drawable.ant_goal_worry),
             contentDescription = "No goals yet",
-            modifier = Modifier.size(240.dp),
+            modifier = Modifier.size(180.dp),
             contentScale = ContentScale.Fit
         )
 
@@ -223,9 +206,17 @@ private fun EmptyGoalsState(
 
         Text(
             text = "Create your first goal",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.Black,
+            color = SpendAntTextSecondary,
+            fontSize = 16.sp,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Add your first goal target",
+            color = SpendAntTextSecondary,
+            fontSize = 14.sp,
             textAlign = TextAlign.Center
         )
 
