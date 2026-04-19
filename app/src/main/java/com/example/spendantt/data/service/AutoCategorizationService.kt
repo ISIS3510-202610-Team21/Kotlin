@@ -112,13 +112,20 @@ class AutoCategorizationService(
         }
     }
 
-    private class OfflineCategorizationStrategy : AutoCategorizationStrategy {
+    private inner class OfflineCategorizationStrategy : AutoCategorizationStrategy {
         override suspend fun categorizeExpense(
             expenseId: Int,
             expenseName: String,
             firebaseUid: String?
         ): Boolean {
-            return false
+            val labels = labelRepository.getLabelsByUser(userId).first()
+            val name = expenseName.lowercase()
+            val matched = labels.firstOrNull { label ->
+                name.contains(label.name.lowercase()) ||
+                label.name.lowercase().contains(name)
+            } ?: return false
+            expenseRepository.categorizeExpense(expenseId, matched.id, firebaseUid)
+            return true
         }
     }
 }

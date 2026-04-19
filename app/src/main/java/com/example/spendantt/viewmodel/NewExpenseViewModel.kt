@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.DataOutputStream
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -42,6 +43,7 @@ data class NewExpenseUiState(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val receiptImageUri: Uri? = null,
+    val localReceiptPath: String? = null,
     val receiptStorageUrl: String? = null,
     val source: ExpenseSource = ExpenseSource.MANUAL,
     val isUploadingImage: Boolean = false,
@@ -167,8 +169,21 @@ class NewExpenseViewModel(
 
     fun onReceiptSelected(uri: Uri) {
         _uiState.value = _uiState.value.copy(receiptImageUri = uri, source = ExpenseSource.OCR)
+        // Guardar localmente primero — funciona sin red
+        viewModelScope.launch(Dispatchers.IO) {
+            val localPath = saveImageLocally(uri)
+            _uiState.value = _uiState.value.copy(localReceiptPath = localPath)
+        }
+        // Subir a Cloudinary en paralelo — si falla, queda la ruta local
         uploadReceiptToCloudinary(uri)
         processOcr(uri)
+    }
+
+    private fun saveImageLocally(uri: Uri): String {
+        val dir = File(context.filesDir, "receipts").apply { mkdirs() }
+        val file = File(dir, "receipt_${System.currentTimeMillis()}.jpg")
+        context.contentResolver.openInputStream(uri)?.use { it.copyTo(file.outputStream()) }
+        return file.absolutePath
     }
 
     private fun processOcr(uri: Uri) {
@@ -276,7 +291,7 @@ class NewExpenseViewModel(
                     longitude = state.longitude,
                     locationName = state.locationName.ifEmpty { null },
                     source = state.source,
-                    receiptImagePath = state.receiptStorageUrl ?: state.receiptImageUri?.toString(),
+                    receiptImagePath = state.receiptStorageUrl ?: state.localReceiptPath ?: state.receiptImageUri?.toString(),
                     isPendingCategory = state.selectedLabelIds.isEmpty()
                 )
 

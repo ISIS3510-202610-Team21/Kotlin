@@ -428,21 +428,27 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
             return
         }
 
-        val todayStart = startOfTodayMillis(now)
-        val recentClosedDays = (1..6).map { dayOffset ->
-            val dayStart = todayStart - (dayOffset * ONE_DAY_MILLIS)
-            val dayEndExclusive = dayStart + ONE_DAY_MILLIS
-            com.example.spendantt.data.repository.DailyExpenseTotal(
-                dayStart = dayStart,
-                totalExpense = SpendingAnomalyCalculator.sumExpensesForDay(
-                    expenses = expenses,
+        val recentClosedDays = if (spendingHistoryRepository.isCacheValid(userId)) {
+            Log.d(TAG, "syncSpendingAnomalyNotification userId=$userId using cached spending history")
+            spendingHistoryRepository.getRecentClosedDays(userId)
+        } else {
+            val todayStart = startOfTodayMillis(now)
+            val calculated = (1..6).map { dayOffset ->
+                val dayStart = todayStart - (dayOffset * ONE_DAY_MILLIS)
+                val dayEndExclusive = dayStart + ONE_DAY_MILLIS
+                com.example.spendantt.data.repository.DailyExpenseTotal(
                     dayStart = dayStart,
-                    dayEndExclusive = dayEndExclusive
+                    totalExpense = SpendingAnomalyCalculator.sumExpensesForDay(
+                        expenses = expenses,
+                        dayStart = dayStart,
+                        dayEndExclusive = dayEndExclusive
+                    )
                 )
-            )
+            }
+            spendingHistoryRepository.saveRecentClosedDays(userId, calculated)
+            Log.d(TAG, "syncSpendingAnomalyNotification userId=$userId cache expired, recalculated and saved")
+            calculated
         }
-
-        spendingHistoryRepository.saveRecentClosedDays(userId, recentClosedDays)
 
         val analyzedDay = recentClosedDays.firstOrNull() ?: return
         val baseline = recentClosedDays.drop(1).take(5)

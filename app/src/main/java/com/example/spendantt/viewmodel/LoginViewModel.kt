@@ -31,20 +31,43 @@ class LoginViewModel(context: Context) : ViewModel() {
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
 
-    fun onUsernameChange(value: String) { _username.value = value; _errorMessage.value = "" }
-    fun onPasswordChange(value: String) { _password.value = value; _errorMessage.value = "" }
+    // Solo letras, dígitos y guion bajo — sin espacios ni emojis
+    fun onUsernameChange(value: String) {
+        val sanitized = value.replace(Regex("[^a-zA-Z0-9_]"), "").take(MAX_USERNAME_LENGTH)
+        _username.value = sanitized
+        _errorMessage.value = ""
+    }
+
+    // Sin espacios ni emojis — solo ASCII imprimible
+    fun onPasswordChange(value: String) {
+        val sanitized = value.replace(Regex("[^\\x21-\\x7E]"), "").take(MAX_PASSWORD_LENGTH)
+        _password.value = sanitized
+        _errorMessage.value = ""
+    }
+
     fun toggleShowPassword() { _showPassword.value = !_showPassword.value }
 
     fun login(onSuccess: (Int) -> Unit) {
-        if (_username.value.isEmpty() || _password.value.isEmpty()) {
-            _errorMessage.value = "Por favor completa todos los campos"
+        val username = _username.value
+        val password = _password.value
+
+        if (username.isEmpty() || password.isEmpty()) {
+            _errorMessage.value = "Please fill all fields"
+            return
+        }
+        if (username.length < MIN_USERNAME_LENGTH) {
+            _errorMessage.value = "Username must be at least $MIN_USERNAME_LENGTH characters"
+            return
+        }
+        if (password.length < MIN_PASSWORD_LENGTH) {
+            _errorMessage.value = "Incorrect username or password"
             return
         }
 
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                val result = userRepository.login(_username.value.trim(), _password.value)
+                val result = userRepository.login(username, password)
                 result.onSuccess { user ->
                     launch {
                         val firebaseUid = user.firebaseUid
@@ -63,5 +86,12 @@ class LoginViewModel(context: Context) : ViewModel() {
                 _isLoading.value = false
             }
         }
+    }
+
+    companion object {
+        private const val MIN_USERNAME_LENGTH = 3
+        private const val MAX_USERNAME_LENGTH = 20
+        private const val MIN_PASSWORD_LENGTH = 8
+        private const val MAX_PASSWORD_LENGTH = 64
     }
 }

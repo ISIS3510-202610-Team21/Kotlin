@@ -28,7 +28,15 @@ class SpendingHistoryRepository(context: Context) {
             )
         }
 
-        prefs.edit().putString(historyKey(userId), array.toString()).commit()
+        prefs.edit()
+            .putString(historyKey(userId), array.toString())
+            .putLong("spending_history_last_saved_$userId", System.currentTimeMillis())
+            .commit()
+    }
+
+    fun isCacheValid(userId: Int): Boolean {
+        val lastSaved = prefs.getLong("spending_history_last_saved_$userId", 0L)
+        return System.currentTimeMillis() - lastSaved < 24 * 60 * 60 * 1000L
     }
 
     fun getRecentClosedDays(userId: Int): List<DailyExpenseTotal> {
