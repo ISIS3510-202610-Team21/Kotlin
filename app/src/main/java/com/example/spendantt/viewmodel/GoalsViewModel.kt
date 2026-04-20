@@ -1,6 +1,7 @@
 package com.example.spendantt.viewmodel
 
 import android.content.Context
+import android.util.LruCache
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -39,6 +40,10 @@ class GoalsViewModel(
     private val incomeRepository = IncomeRepository(database.incomeDao())
     private val preferences = GoalPreferences(context)
     private val notificationRepository = NotificationRepository(context)
+
+    // CACHING | Dilan | 10pts | LruCache: cachea el currentAmount calculado por goalId.
+
+    private val goalAmountCache = LruCache<Int, Double>(MAX_CACHED_GOALS)
 
     private val _goals = mutableStateOf<List<GoalListItemUiState>>(emptyList())
     val goals: State<List<GoalListItemUiState>> = _goals
@@ -157,6 +162,7 @@ class GoalsViewModel(
     private fun observeGoals() {
         viewModelScope.launch {
             repository.getGoalsByUser(userId).collectLatest { goals ->
+                goalAmountCache.evictAll() // datos cambiaron — invalida toda la caché
                 val now = System.currentTimeMillis()
                 val incomes = incomeRepository.getIncomesByUser(userId).first()
                 val expenses = expenseRepository.getExpensesWithLabels(userId).first()
@@ -165,14 +171,18 @@ class GoalsViewModel(
                 val selectedGoalId = ensureSelectedGoal(goals)
                 _goals.value = goals.map { goal ->
                     val dailyAmount = DailyFinanceCalculator.calculateDailyGoal(goal)
-                    val currentAmount = DailyFinanceCalculator.calculateDynamicGoalAmount(
-                        goal = goal,
-                        allGoals = goals,
-                        expenses = expenses,
-                        totalDailyIncome = totalDailyIncome,
-                        selectedGoalId = selectedGoalId,
-                        now = now
-                    )
+                    val currentAmount = goalAmountCache.get(goal.id) ?: run {
+                        val calculated = DailyFinanceCalculator.calculateDynamicGoalAmount(
+                            goal = goal,
+                            allGoals = goals,
+                            expenses = expenses,
+                            totalDailyIncome = totalDailyIncome,
+                            selectedGoalId = selectedGoalId,
+                            now = now
+                        )
+                        goalAmountCache.put(goal.id, calculated)
+                        calculated
+                    }
                     val isCompleted = currentAmount + 0.0001 >= goal.targetAmount
                     goal.copy(currentAmount = currentAmount).let {
                         GoalListItemUiState(
@@ -219,5 +229,9 @@ class GoalsViewModel(
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
+    }
+
+    companion object {
+        private const val MAX_CACHED_GOALS = 20
     }
 }

@@ -104,6 +104,16 @@ class IcsImportService(
         return getImportedEvents(userId).isNotEmpty()
     }
 
+    fun markIcsScreenSeen(userId: Int) {
+        prefs.edit().putBoolean(seenKey(userId), true).apply()
+    }
+
+    fun hasSeenIcsScreen(userId: Int): Boolean {
+        return prefs.getBoolean(seenKey(userId), false) || hasImportedEvents(userId)
+    }
+
+    private fun seenKey(userId: Int): String = "ics_screen_seen_$userId"
+
     private fun isValidIcsUri(uri: Uri): Boolean {
         val uriString = uri.toString().lowercase(Locale.getDefault())
         val displayName = appContext.contentResolver.query(uri, arrayOf("_display_name"), null, null, null)

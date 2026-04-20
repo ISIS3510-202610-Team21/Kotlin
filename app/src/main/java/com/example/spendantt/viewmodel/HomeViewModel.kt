@@ -1,6 +1,7 @@
 package com.example.spendantt.viewmodel
 
 import android.content.Context
+import android.util.ArrayMap
 import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -162,7 +163,8 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                     }
                     _monthlyExpenses.value = monthlyExpenses.sumOf { it.expense.amount }
 
-                    val categoryMap = mutableMapOf<String, Double>()
+                    // CACHING | Dilan | 10pts | ArrayMap: dos arrays paralelos (claves/valores) con búsqueda binaria O(log n), sin Entry objects ni autoboxing — menor presión al GC que HashMap para < 20 categorías. Se convierte a LinkedHashMap al asignar al estado porque ArrayMap no implementa entrySet().toArray(), requerido por las funciones de colección de Kotlin.
+                    val categoryMap = ArrayMap<String, Double>()
                     monthlyExpenses.forEach { expenseWithLabels ->
                         expenseWithLabels.labels.forEach { label ->
                             categoryMap[label.name] =
@@ -177,7 +179,9 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                         categoryMap["Other"] = 80000.0
                         _monthlyExpenses.value = 600000.0
                     }
-                    _categoryExpenses.value = categoryMap
+                    val result = LinkedHashMap<String, Double>(categoryMap.size)
+                    for (i in 0 until categoryMap.size) result[categoryMap.keyAt(i)] = categoryMap.valueAt(i)
+                    _categoryExpenses.value = result
                     notificationRepository.pruneInvalidScheduledNotifications(userId, now)
                     notificationRepository.pruneFutureDailyNotifications(userId, startOfTodayMillis(now))
 
@@ -265,7 +269,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         now: Long = System.currentTimeMillis()
     ): Map<String, Double> {
         val monthRange = getMonthDateRange(now)
-        val categoryMap = mutableMapOf<String, Double>()
+        val categoryMap = ArrayMap<String, Double>()
 
         expenses
             .filter { it.expense.date in monthRange.first..monthRange.second && it.expense.date <= now }
@@ -276,7 +280,9 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                 }
             }
 
-        return categoryMap
+        val result = LinkedHashMap<String, Double>(categoryMap.size)
+        for (i in 0 until categoryMap.size) result[categoryMap.keyAt(i)] = categoryMap.valueAt(i)
+        return result
     }
 
     private suspend fun updateNotifications(

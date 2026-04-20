@@ -71,7 +71,7 @@ class MainActivity : AppCompatActivity() {
                 val navController = rememberNavController()
 
                 fun navigateAfterAuthentication(userId: Int) {
-                    val hasImportedCalendar = IcsImportService(activity).hasImportedEvents(userId)
+                    val hasImportedCalendar = IcsImportService(activity).hasSeenIcsScreen(userId)
                     val destination = if (hasImportedCalendar) {
                         Screen.Home.route
                     } else {

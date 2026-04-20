@@ -96,6 +96,9 @@ dependencies {
     implementation("com.google.firebase:firebase-crashlytics-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
 
+    // CACHING | Dilan | 5pts | Coil: librería de caché de imágenes para Compose — descarga, decodifica y cachea imágenes (disco + memoria) automáticamente; usado para preview del recibo en NewExpenseScreen
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

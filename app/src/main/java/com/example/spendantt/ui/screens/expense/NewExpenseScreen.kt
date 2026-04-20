@@ -58,6 +58,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -420,6 +422,18 @@ private fun NewExpenseFormContent(
                 }
 
                 if (uiState.receiptImageUri != null) {
+                    // CACHING | Dilan | 5pts | Coil AsyncImage: carga el URI del recibo de forma asíncrona
+                    // con caché en memoria y disco automáticos — evita redecodificar el bitmap en cada
+                    // recomposición; Coil gestiona el ciclo de vida y cancela la carga si el composable sale
+                    AsyncImage(
+                        model = uiState.receiptImageUri,
+                        contentDescription = "Receipt preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                            .align(Alignment.CenterHorizontally)
+                    )
                     Text(
                         text = "Receipt selected. OCR can update amount, date, time and merchant.",
                         color = SpendAntGreen,
