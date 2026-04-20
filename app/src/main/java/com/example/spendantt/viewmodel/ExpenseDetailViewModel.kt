@@ -110,12 +110,13 @@ class ExpenseDetailViewModel(
     fun savePendingLabel() {
         val state = _uiState.value
         val labelId = state.selectedLabelIds.firstOrNull() ?: return
+        val label = state.allLabels.find { it.id == labelId } ?: return
         viewModelScope.launch {
             _uiState.value = state.copy(isSavingLabel = true)
             try {
                 autoCategorizationService.assignLabelManually(
                     expenseId = expenseId,
-                    labelId = labelId,
+                    labelId = label.id,
                     expenseName = state.name,
                     firebaseUid = firebaseUid
                 )

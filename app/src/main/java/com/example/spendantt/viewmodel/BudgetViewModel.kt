@@ -1,7 +1,10 @@
 package com.example.spendantt.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.spendantt.data.local.AppDatabase
+import com.example.spendantt.data.local.UserDataExporter
 import com.example.spendantt.data.local.entity.IncomeEntity
 import com.example.spendantt.data.local.entity.IncomeType
 import com.example.spendantt.data.local.entity.RecurrenceUnit
@@ -43,6 +46,9 @@ class BudgetViewModel(
 
     private val _formState = MutableStateFlow(NewIncomeFormState())
     val formState: StateFlow<NewIncomeFormState> = _formState.asStateFlow()
+
+    private val _exportResult = MutableStateFlow<String?>(null)
+    val exportResult: StateFlow<String?> = _exportResult.asStateFlow()
 
     init {
         loadIncomes()
@@ -159,5 +165,20 @@ class BudgetViewModel(
 
     fun clearMessages() {
         _uiState.value = _uiState.value.copy(errorMessage = null, successMessage = null)
+    }
+
+    fun exportUserData(context: Context) {
+        viewModelScope.launch {
+            val exporter = UserDataExporter(context.applicationContext, AppDatabase.getInstance(context))
+            val result = exporter.exportToFile(userId)
+            _exportResult.value = result.fold(
+                onSuccess = { path -> "Data exported to:\n$path" },
+                onFailure = { e -> "Export failed: ${e.message}" }
+            )
+        }
+    }
+
+    fun clearExportResult() {
+        _exportResult.value = null
     }
 }

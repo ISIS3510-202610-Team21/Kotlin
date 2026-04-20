@@ -134,7 +134,10 @@ fun OnboardingScreen2(
         coroutineScope.launch {
             val result = icsImportService.importFromUri(userId, uri)
             result.fold(
-                onSuccess = { onImportSuccess() },
+                onSuccess = {
+                    icsImportService.markIcsScreenSeen(userId)
+                    onImportSuccess()
+                },
                 onFailure = { error ->
                     isImporting = false
                     importError = error.message ?: "Unable to import the selected .ics file."
@@ -220,7 +223,10 @@ fun OnboardingScreen2(
                 fontFamily = SpendAntFontFamily,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.Black,
-                modifier = Modifier.clickable { onSkip() }
+                modifier = Modifier.clickable {
+                    icsImportService.markIcsScreenSeen(userId)
+                    onSkip()
+                }
             )
 
             Spacer(modifier = Modifier.height(60.dp))
