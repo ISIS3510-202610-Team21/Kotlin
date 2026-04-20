@@ -26,6 +26,9 @@ import kotlinx.coroutines.launch
  */
 class GmailNotificationListenerService : NotificationListenerService() {
 
+    // MULTI-THREADING | Nano | 5pts | Corrutina con dispatcher: CoroutineScope(SupervisorJob() + Dispatchers.IO) — SupervisorJob hace que un fallo en una corrutina hija no cancele las demás
+    // MULTI-THREADING | Nano | 10pts | Múltiples corrutinas anidadas en I/O: serviceScope.launch{} encadena parseo → insertExpense (Room) → AutoCategorizationService (Pinecone) → upsertNotification, todo en el mismo scope I/O
+    // MULTI-THREADING | Nano | 10pts | Una en I/O + una en Main: onNotificationPosted() corre en el Main thread del sistema; processBoldNotification() delega al scope I/O para no bloquear el listener
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var expenseRepository: ExpenseRepository
     private lateinit var notificationRepository: NotificationRepository

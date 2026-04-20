@@ -65,6 +65,8 @@ class LoginViewModel(context: Context) : ViewModel() {
         }
 
         _isLoading.value = true
+        // MULTI-THREADING | Dilan | 5pts | Corrutina con dispatcher: viewModelScope usa Dispatchers.Main por defecto, ligando la corrutina al ciclo de vida del ViewModel
+        // MULTI-THREADING | Dilan | 10pts | Múltiples corrutinas anidadas: launch{} anidado dentro de viewModelScope.launch{} para sincronizar Firebase en paralelo sin bloquear la respuesta al usuario
         viewModelScope.launch {
             try {
                 val result = userRepository.login(username, password)

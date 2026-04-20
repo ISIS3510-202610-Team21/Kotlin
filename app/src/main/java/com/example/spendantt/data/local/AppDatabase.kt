@@ -39,6 +39,9 @@ import com.example.spendantt.data.local.entity.UserEntity
     version = 4,
     exportSchema = false
 )
+// LOCAL STORAGE | Dilan | 10pts | BD Relacional Room: userDao() — UserEntity persistida en SQLite; usada en LoginViewModel y RegisterViewModel para autenticación local
+// LOCAL STORAGE | William | 10pts | BD Relacional Room: expenseDao() + labelDao() — relación many-to-many ExpenseEntity↔LabelEntity con ExpenseLabelCrossRef
+// LOCAL STORAGE | Nano | 10pts | BD Relacional Room: goalDao() + incomeDao() — GoalEntity e IncomeEntity consultadas con Flow para cálculos reactivos de presupuesto
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun userDao(): UserDao

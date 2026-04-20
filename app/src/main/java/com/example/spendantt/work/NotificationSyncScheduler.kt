@@ -2,10 +2,8 @@ package com.example.spendantt.work
 
 import android.content.Context
 import android.util.Log
-import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -18,14 +16,8 @@ object NotificationSyncScheduler {
     private const val HABIT_FIXER_PERIODIC_WORK_NAME = "habit_fixer_periodic_work"
     private const val HABIT_FIXER_IMMEDIATE_WORK_NAME = "habit_fixer_immediate"
 
-    // Workers periódicos solo corren cuando hay red disponible
-    private val networkConstraints = Constraints.Builder()
-        .setRequiredNetworkType(NetworkType.CONNECTED)
-        .build()
-
     fun schedulePeriodic(context: Context) {
         val request = PeriodicWorkRequestBuilder<NotificationSyncWorker>(15, TimeUnit.MINUTES)
-            .setConstraints(networkConstraints)
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             PERIODIC_WORK_NAME,
@@ -34,37 +26,32 @@ object NotificationSyncScheduler {
         )
 
         val habitRequest = PeriodicWorkRequestBuilder<HabitFixerWorker>(30, TimeUnit.MINUTES)
-            .setConstraints(networkConstraints)
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             HABIT_FIXER_PERIODIC_WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
             habitRequest
         )
-        Log.d(TAG, "schedulePeriodic constraints=CONNECTED")
+        Log.d(TAG, "schedulePeriodic")
     }
 
     fun enqueueImmediate(context: Context, reason: String) {
-        val request = OneTimeWorkRequestBuilder<NotificationSyncWorker>()
-            .setConstraints(networkConstraints)
-            .build()
+        val request = OneTimeWorkRequestBuilder<NotificationSyncWorker>().build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             IMMEDIATE_WORK_NAME,
             ExistingWorkPolicy.REPLACE,
             request
         )
-        Log.d(TAG, "enqueueImmediate reason=$reason constraints=CONNECTED")
+        Log.d(TAG, "enqueueImmediate reason=$reason")
     }
 
     fun enqueueHabitFixerImmediate(context: Context, reason: String) {
-        val request = OneTimeWorkRequestBuilder<HabitFixerWorker>()
-            .setConstraints(networkConstraints)
-            .build()
+        val request = OneTimeWorkRequestBuilder<HabitFixerWorker>().build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             HABIT_FIXER_IMMEDIATE_WORK_NAME,
             ExistingWorkPolicy.REPLACE,
             request
         )
-        Log.d(TAG, "enqueueHabitFixerImmediate reason=$reason constraints=CONNECTED")
+        Log.d(TAG, "enqueueHabitFixerImmediate reason=$reason")
     }
 }
