@@ -9,6 +9,7 @@ data class DailyExpenseTotal(
     val totalExpense: Double
 )
 
+// LOCAL STORAGE | William | 5pts | Preferences: SharedPreferences serializa historial de gastos diarios como JSONArray, clave por userId; permite análisis de anomalías de gasto sin consultar Room
 class SpendingHistoryRepository(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 

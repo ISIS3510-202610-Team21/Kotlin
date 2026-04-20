@@ -13,6 +13,7 @@ class GoalRepository(
     private val goalDao: GoalDao,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
+    // LOCAL STORAGE | Nano | 10pts | BD Relacional Room: GoalEntity persistida en SQLite vía Room DAO, consultada con Flow para observar cambios reactivamente
     private val syncScope = CoroutineScope(Dispatchers.IO)
 
     suspend fun insertGoal(goal: GoalEntity, firebaseUid: String? = null): Result<Long> {

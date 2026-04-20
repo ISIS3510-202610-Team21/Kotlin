@@ -18,6 +18,7 @@ data class ImportedCalendarEvent(
     val location: String?
 )
 
+// LOCAL STORAGE | William | 5pts | Archivos Locales: lee archivo .ics del filesystem del dispositivo vía ContentResolver + BufferedReader/InputStreamReader; parsea VCALENDAR y persiste eventos en SharedPreferences
 class IcsImportService(
     context: Context
 ) {
