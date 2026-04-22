@@ -2,7 +2,7 @@ package com.example.spendantt.data.preferences
 
 import android.content.Context
 
-// LOCAL STORAGE | Dilan | 5pts | Preferences: SharedPreferences para persistir el goal seleccionado por usuario entre sesiones, clave compuesta por userId para aislamiento multi-usuario
+// LOCAL STORAGE | Nano | 5pts | Preferences: SharedPreferences para persistir el goal seleccionado por usuario entre sesiones, clave compuesta por userId para aislamiento multi-usuario
 class GoalPreferences(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 

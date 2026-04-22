@@ -99,8 +99,8 @@ fun GoalsScreen(
     ) {
         SpendAntHeader(
             title = "Goals",
-            onClose = onExit,
-            onConfirm = onExit
+            onClose = null,
+            onConfirm = null
         )
 
         if (isLoading) {

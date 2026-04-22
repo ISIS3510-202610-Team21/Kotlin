@@ -37,8 +37,8 @@ fun BudgetAndIncomeScreen(
         // ── HEADER ────────────────────────────────────────────
         SpendAntHeader(
             title = "Budget and Income",
-            onClose = onClose,
-            onConfirm = onClose
+            onClose = null,
+            onConfirm = null
         )
 
         // ── LISTA DE INGRESOS ─────────────────────────────────

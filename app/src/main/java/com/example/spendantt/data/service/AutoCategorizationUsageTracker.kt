@@ -3,7 +3,7 @@ package com.example.spendantt.data.service
 import android.content.Context
 import org.json.JSONArray
 
-// LOCAL STORAGE | Nano | 5pts | Preferences: SharedPreferences almacena timestamps de auto-categorizaciones como JSONArray por userId; persiste métricas de uso entre sesiones sin necesidad de Room
+// LOCAL STORAGE | Dilan | 5pts | Preferences: SharedPreferences almacena timestamps de auto-categorizaciones como JSONArray por userId; persiste métricas de uso entre sesiones sin necesidad de Room
 class AutoCategorizationUsageTracker(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 

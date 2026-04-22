@@ -25,7 +25,7 @@ import com.example.spendantt.ui.theme.*
 @Composable
 fun SpendAntHeader(
     title: String,
-    onClose: () -> Unit,
+    onClose: (() -> Unit)? = null,
     onConfirm: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -36,15 +36,17 @@ fun SpendAntHeader(
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         // Botón X - izquierda
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Cerrar",
-                tint = SpendAntTextOnGreen
-            )
+        if (onClose != null) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Cerrar",
+                    tint = SpendAntTextOnGreen
+                )
+            }
         }
 
         // Título - centro

@@ -66,6 +66,9 @@ fun SetGoalFlowScreen(
     var amount by remember { mutableStateOf("") }
     var purpose by remember { mutableStateOf("") }
     var targetDateMillis by remember { mutableStateOf<Long?>(null) }
+    var purposeError by remember { mutableStateOf<String?>(null) }
+    var amountError by remember { mutableStateOf<String?>(null) }
+    var dateError by remember { mutableStateOf<String?>(null) }
     var saveError by remember { mutableStateOf<String?>(null) }
 
     val amountValue = amount.toLongOrNull() ?: 0L
@@ -89,27 +92,60 @@ fun SetGoalFlowScreen(
         currentStep == 0 -> {
             SetGoalPurposeScreen(
                 purpose = purpose,
-                onPurposeChange = { purpose = it },
+                errorMessage = purposeError,
+                onPurposeChange = {
+                    purpose = it
+                    purposeError = null
+                },
                 onBackClick = onExit,
-                onContinueClick = { currentStep = 1 }
+                onContinueClick = {
+                    if (purpose.isBlank()) {
+                        purposeError = "Goal name cannot be empty."
+                    } else {
+                        purposeError = null
+                        currentStep = 1
+                    }
+                }
             )
         }
 
         currentStep == 1 -> {
             SetGoalAmountScreen(
                 amount = amount,
-                onAmountChange = { amount = it },
+                errorMessage = amountError,
+                onAmountChange = {
+                    amount = it
+                    amountError = null
+                },
                 onBackClick = { currentStep = 0 },
-                onContinueClick = { currentStep = 2 }
+                onContinueClick = {
+                    if (amountValue < MIN_GOAL_AMOUNT) {
+                        amountError = "Goal amount must be at least 50."
+                    } else {
+                        amountError = null
+                        currentStep = 2
+                    }
+                }
             )
         }
 
         currentStep == 2 -> {
             SetGoalDateScreen(
                 targetDateMillis = targetDateMillis,
-                onTargetDateChange = { targetDateMillis = it },
+                errorMessage = dateError,
+                onTargetDateChange = {
+                    targetDateMillis = it
+                    dateError = null
+                },
                 onBackClick = { currentStep = 1 },
-                onContinueClick = { currentStep = 3 }
+                onContinueClick = {
+                    if (targetDateMillis == null || daysRemaining <= 0) {
+                        dateError = "Goal date must be after today."
+                    } else {
+                        dateError = null
+                        currentStep = 3
+                    }
+                }
             )
         }
 
@@ -121,7 +157,7 @@ fun SetGoalFlowScreen(
                 onBackClick = { currentStep = 2 },
                 onAlrightClick = {
                     val deadlineMillis = targetDateMillis
-                    if (amountValue > 0L && deadlineMillis != null && purpose.isNotBlank() && daysRemaining > 0) {
+                    if (amountValue >= MIN_GOAL_AMOUNT && deadlineMillis != null && purpose.isNotBlank() && daysRemaining > 0) {
                         coroutineScope.launch {
                             saveError = onSaveGoal(
                                 purpose.trim(),
@@ -133,6 +169,13 @@ fun SetGoalFlowScreen(
                                 onExit()
                             }
                         }
+                    } else {
+                        saveError = when {
+                            amountValue < MIN_GOAL_AMOUNT -> "Goal amount must be at least 50."
+                            deadlineMillis == null || daysRemaining <= 0 -> "Goal date must be after today."
+                            purpose.isBlank() -> "Goal name cannot be empty."
+                            else -> "Please complete all goal fields."
+                        }
                     }
                 }
             )
@@ -143,6 +186,7 @@ fun SetGoalFlowScreen(
 @Composable
 fun SetGoalAmountScreen(
     amount: String,
+    errorMessage: String?,
     onAmountChange: (String) -> Unit,
     onBackClick: () -> Unit,
     onContinueClick: () -> Unit
@@ -150,6 +194,7 @@ fun SetGoalAmountScreen(
     SetGoalQuestionScreen(
         question = "How much money do you want to save?",
         inputValue = amount,
+        errorMessage = errorMessage,
         inputPlaceholder = "30200000",
         antDrawableRes = R.drawable.ant_goal_happy,
         keyboardType = KeyboardType.Number,
@@ -162,6 +207,7 @@ fun SetGoalAmountScreen(
 @Composable
 fun SetGoalPurposeScreen(
     purpose: String,
+    errorMessage: String?,
     onPurposeChange: (String) -> Unit,
     onBackClick: () -> Unit,
     onContinueClick: () -> Unit
@@ -169,6 +215,7 @@ fun SetGoalPurposeScreen(
     SetGoalQuestionScreen(
         question = "What are you saving for?",
         inputValue = purpose,
+        errorMessage = errorMessage,
         inputPlaceholder = "A new car",
         antDrawableRes = R.drawable.ant_goal_happy_2,
         onInputChange = onPurposeChange,
@@ -180,12 +227,14 @@ fun SetGoalPurposeScreen(
 @Composable
 fun SetGoalDateScreen(
     targetDateMillis: Long?,
+    errorMessage: String?,
     onTargetDateChange: (Long?) -> Unit,
     onBackClick: () -> Unit,
     onContinueClick: () -> Unit
 ) {
     SetGoalDatePickerScreen(
         targetDateMillis = targetDateMillis,
+        errorMessage = errorMessage,
         onTargetDateChange = onTargetDateChange,
         onBackClick = onBackClick,
         onContinueClick = onContinueClick
@@ -196,6 +245,7 @@ fun SetGoalDateScreen(
 @Composable
 private fun SetGoalDatePickerScreen(
     targetDateMillis: Long?,
+    errorMessage: String?,
     onTargetDateChange: (Long?) -> Unit,
     onBackClick: () -> Unit,
     onContinueClick: () -> Unit
@@ -204,9 +254,9 @@ private fun SetGoalDatePickerScreen(
     val todayUtcMillis = remember { utcTodayMillis() }
     val datePickerState = androidx.compose.material3.rememberDatePickerState(
         initialSelectedDateMillis = targetDateMillis,
-        selectableDates = object : SelectableDates {
+            selectableDates = object : SelectableDates {
             override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                return utcTimeMillis >= todayUtcMillis
+                return utcTimeMillis > todayUtcMillis
             }
         }
     )
@@ -249,6 +299,19 @@ private fun SetGoalDatePickerScreen(
                     fontSize = 16.sp
                 )
             }
+        }
+
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = errorMessage,
+                fontSize = 12.sp,
+                color = Color.Red,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -383,6 +446,7 @@ fun SetGoalPlanScreen(
 private fun SetGoalQuestionScreen(
     question: String,
     inputValue: String,
+    errorMessage: String?,
     inputPlaceholder: String,
     antDrawableRes: Int,
     keyboardType: KeyboardType = KeyboardType.Text,
@@ -425,6 +489,19 @@ private fun SetGoalQuestionScreen(
             ),
             shape = RoundedCornerShape(2.dp)
         )
+
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = errorMessage,
+                fontSize = 12.sp,
+                color = Color.Red,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -547,6 +624,8 @@ private fun utcTodayMillis(): Long {
     }
     return utcCalendar.timeInMillis
 }
+
+private const val MIN_GOAL_AMOUNT = 50L
 
 private fun normalizeToLocalStartOfDay(dateMillis: Long): Long {
     val utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
