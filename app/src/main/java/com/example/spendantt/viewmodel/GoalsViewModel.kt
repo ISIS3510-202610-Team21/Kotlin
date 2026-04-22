@@ -95,6 +95,18 @@ class GoalsViewModel(
                 return message
             }
 
+            if (targetAmount < MIN_GOAL_TARGET_AMOUNT) {
+                val message = "Goal amount must be at least 50."
+                _goalLimitError.value = message
+                return message
+            }
+
+            if (startOfDayMillis(deadline) <= createdAt) {
+                val message = "Goal date must be after today."
+                _goalLimitError.value = message
+                return message
+            }
+
             if (dailyAmount > totalDailyIncome) {
                 val message = "This goal needs more daily savings than your daily income allows."
                 _goalLimitError.value = message
@@ -233,5 +245,6 @@ class GoalsViewModel(
 
     companion object {
         private const val MAX_CACHED_GOALS = 20
+        private const val MIN_GOAL_TARGET_AMOUNT = 50.0
     }
 }

@@ -19,9 +19,13 @@ import com.example.spendantt.data.repository.SpendingHistoryRepository
 import com.example.spendantt.data.service.SyncService
 import com.example.spendantt.util.DailyFinanceCalculator
 import com.example.spendantt.util.SpendingAnomalyCalculator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DecimalFormat
 import java.util.Calendar
 
@@ -101,16 +105,12 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         viewModelScope.launch {
             try {
                 val now = System.currentTimeMillis()
-                val latestExpenses = expenseRepository.getExpensesWithLabels(userId).first()
-                    .filter { it.expense.date <= now }
-                    .sortedByDescending { it.expense.date }
-                _allExpenses.value = latestExpenses
-                _monthlyExpenses.value = DailyFinanceCalculator.calculateCurrentMonthExpenses(latestExpenses, now)
-                _categoryExpenses.value = calculateCurrentMonthCategoryMap(latestExpenses, now)
-                notificationRepository.pruneInvalidScheduledNotifications(userId, now)
-                notificationRepository.pruneFutureDailyNotifications(userId, startOfTodayMillis(now))
-                recalculateFinancialState(latestExpenses, now)
-                _unreadNotificationsCount.value = notificationRepository.getUnreadCount(userId)
+                val homeSnapshot = loadHomeSnapshotInParallel(now)
+                _allExpenses.value = homeSnapshot.latestExpenses
+                _monthlyExpenses.value = homeSnapshot.monthlyExpenses
+                _categoryExpenses.value = homeSnapshot.categoryExpenses
+                _unreadNotificationsCount.value = homeSnapshot.unreadNotificationsCount
+                recalculateFinancialState(homeSnapshot.latestExpenses, now)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error refreshing home data"
             }
@@ -263,6 +263,37 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
             _errorMessage.value = e.message ?: "Error recalculating home data"
         }
     }
+
+    // MULTI-THREADING | NANO | 10pts | Corrutina padre en Main (viewModelScope.launch) que delega a Dispatchers.IO y dentro crea corrutinas hijas con async para leer gastos/notificaciones en paralelo y ejecutar limpieza de notificaciones sin bloquear UI.
+    private suspend fun loadHomeSnapshotInParallel(now: Long): HomeSnapshot =
+        withContext(Dispatchers.IO) {
+            coroutineScope {
+                val todayStart = startOfTodayMillis(now)
+
+                val expensesDeferred = async {
+                    expenseRepository.getExpensesWithLabels(userId).first()
+                        .filter { it.expense.date <= now }
+                        .sortedByDescending { it.expense.date }
+                }
+                val pruneInvalidDeferred = async {
+                    notificationRepository.pruneInvalidScheduledNotifications(userId, now)
+                }
+                val pruneFutureDeferred = async {
+                    notificationRepository.pruneFutureDailyNotifications(userId, todayStart)
+                }
+
+                val latestExpenses = expensesDeferred.await()
+                pruneInvalidDeferred.await()
+                pruneFutureDeferred.await()
+
+                HomeSnapshot(
+                    latestExpenses = latestExpenses,
+                    monthlyExpenses = DailyFinanceCalculator.calculateCurrentMonthExpenses(latestExpenses, now),
+                    categoryExpenses = calculateCurrentMonthCategoryMap(latestExpenses, now),
+                    unreadNotificationsCount = notificationRepository.getUnreadCount(userId)
+                )
+            }
+        }
 
     private fun calculateCurrentMonthCategoryMap(
         expenses: List<ExpenseWithLabels>,
@@ -513,3 +544,10 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         private const val ONE_DAY_MILLIS = 24L * 60L * 60L * 1000L
     }
 }
+
+private data class HomeSnapshot(
+    val latestExpenses: List<ExpenseWithLabels>,
+    val monthlyExpenses: Double,
+    val categoryExpenses: Map<String, Double>,
+    val unreadNotificationsCount: Int
+)

@@ -9,6 +9,10 @@ import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.repository.PineconeRepository
 import com.example.spendantt.util.AnalyticsHelper
 import kotlinx.coroutines.flow.first
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class AutoCategorizationService(
     private val context: Context,
@@ -18,6 +22,8 @@ class AutoCategorizationService(
     private val expenseRepository = ExpenseRepository(db.expenseDao(), db.labelDao())
     private val labelRepository = LabelRepository(db.labelDao())
     private val pineconeRepository = PineconeRepository()
+    private val autoCategorizationFallbackLogFile =
+        File(context.filesDir, AUTO_CATEGORIZATION_FALLBACK_LOG_FILE_NAME)
 
     private var isSeeded = false
 
@@ -26,17 +32,28 @@ class AutoCategorizationService(
         expenseName: String,
         firebaseUid: String? = null
     ): Boolean {
-        val strategy = if (hasInternet()) {
+        val online = hasInternet()
+        val strategy = if (online) {
             OnlinePineconeCategorizationStrategy()
         } else {
             OfflineCategorizationStrategy()
         }
 
-        return strategy.categorizeExpense(
+        val categorized = strategy.categorizeExpense(
             expenseId = expenseId,
             expenseName = expenseName,
             firebaseUid = firebaseUid
         )
+
+        if (!categorized) {
+            appendAutoCategorizationFallbackLog(
+                expenseId = expenseId,
+                expenseName = expenseName,
+                attemptedOnline = online
+            )
+        }
+
+        return categorized
     }
 
     suspend fun assignLabelManually(
@@ -84,6 +101,33 @@ class AutoCategorizationService(
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
+    // LOCAL STORAGE | NANO | 5pts | Archivos Locales: guarda en autocategorization_fallbacks.txt cada gasto que no pudo autocategorizarse y pasó a etiquetado manual
+    private fun appendAutoCategorizationFallbackLog(
+        expenseId: Int,
+        expenseName: String,
+        attemptedOnline: Boolean
+    ) {
+        try {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            val entry = buildString {
+                append("[$timestamp] Auto-categorization fallback")
+                append("\nuserId=")
+                append(userId)
+                append("\nexpenseId=")
+                append(expenseId)
+                append("\nexpenseName=")
+                append(expenseName)
+                append("\nmode=")
+                append(if (attemptedOnline) "online" else "offline")
+                append("\nresult=manual_label_required")
+                append("\n\n")
+            }
+            autoCategorizationFallbackLogFile.appendText(entry)
+        } catch (_: Exception) {
+            // El registro local no debe romper el flujo principal.
+        }
+    }
+
     private interface AutoCategorizationStrategy {
         suspend fun categorizeExpense(
             expenseId: Int,
@@ -120,5 +164,10 @@ class AutoCategorizationService(
         ): Boolean {
             return false
         }
+    }
+
+    companion object {
+        private const val AUTO_CATEGORIZATION_FALLBACK_LOG_FILE_NAME =
+            "autocategorization_fallbacks.txt"
     }
 }

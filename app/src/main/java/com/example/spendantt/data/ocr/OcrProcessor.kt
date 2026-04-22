@@ -6,6 +6,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.coroutines.resume
@@ -29,6 +30,7 @@ import kotlin.coroutines.resumeWithException
 class OcrProcessor(private val context: Context) {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private val ocrErrorLogFile = File(context.filesDir, OCR_ERROR_LOG_FILE_NAME)
 
     data class OcrResult(
         val name: String? = null,
@@ -39,10 +41,15 @@ class OcrProcessor(private val context: Context) {
     )
 
     suspend fun processReceipt(uri: Uri): OcrResult {
-        val image = InputImage.fromFilePath(context, uri)
-        val text = recognizeText(image)
-        android.util.Log.d("OCR_TEXT", text)
-        return parseReceiptText(text)
+        return try {
+            val image = InputImage.fromFilePath(context, uri)
+            val text = recognizeText(image)
+            android.util.Log.d("OCR_TEXT", text)
+            parseReceiptText(text)
+        } catch (e: Exception) {
+            appendOcrErrorLog(uri, e)
+            throw e
+        }
     }
 
     private suspend fun recognizeText(image: InputImage): String {
@@ -50,6 +57,24 @@ class OcrProcessor(private val context: Context) {
             recognizer.process(image)
                 .addOnSuccessListener { result -> continuation.resume(result.text) }
                 .addOnFailureListener { e -> continuation.resumeWithException(e) }
+        }
+    }
+
+    // LOCAL STORAGE | NANO | 5pts | Archivos Locales: log de errores OCR en ocr_errors.txt dentro de filesDir para conservar trazas locales privadas de la app
+    private fun appendOcrErrorLog(uri: Uri, error: Exception) {
+        try {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            val entry = buildString {
+                append("[$timestamp] OCR error")
+                append("\nuri=")
+                append(uri.toString())
+                append("\nmessage=")
+                append(error.message ?: error.javaClass.simpleName)
+                append("\n\n")
+            }
+            ocrErrorLogFile.appendText(entry)
+        } catch (_: Exception) {
+            // El log de errores no debe romper el flujo principal del OCR.
         }
     }
 
@@ -67,6 +92,7 @@ class OcrProcessor(private val context: Context) {
     // ── KEYWORDS ──────────────────────────────────────────────────────────────────
     // Ordenados por prioridad: el índice más bajo = mayor score al hacer match
     companion object {
+        private const val OCR_ERROR_LOG_FILE_NAME = "ocr_errors.txt"
         private val TOTAL_KEYWORDS = listOf(
             "total exacto", "total cop", "total a pagar", "total pagar",
             "valor total", "grand total", "amount due", "tctal", "tctal:",
