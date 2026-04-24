@@ -38,6 +38,7 @@ fun BudgetNavigation(
                 viewModel = viewModel,
                 displayName = displayName,
                 handle = handle,
+                avatarPath = null,
                 onIncomeClick = { currentScreen = BudgetScreen.BUDGET_AND_INCOME },
                 onGoalsClick = onGoalsClick,
                 onEditClick = { /* TODO: EditProfileScreen */ }

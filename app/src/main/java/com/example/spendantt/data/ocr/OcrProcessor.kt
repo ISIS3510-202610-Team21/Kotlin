@@ -2,6 +2,7 @@ package com.example.spendantt.data.ocr
 
 import android.content.Context
 import android.net.Uri
+import android.util.LruCache
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -41,11 +42,20 @@ class OcrProcessor(private val context: Context) {
     )
 
     suspend fun processReceipt(uri: Uri): OcrResult {
+        val cacheKey = uri.toString()
+        ocrResultCache.get(cacheKey)?.let { cachedResult ->
+            android.util.Log.d(OCR_CACHE_TAG, "Cache hit for $cacheKey")
+            return cachedResult
+        }
+
         return try {
+            android.util.Log.d(OCR_CACHE_TAG, "Cache miss for $cacheKey")
             val image = InputImage.fromFilePath(context, uri)
             val text = recognizeText(image)
             android.util.Log.d("OCR_TEXT", text)
-            parseReceiptText(text)
+            parseReceiptText(text).also { result ->
+                ocrResultCache.put(cacheKey, result)
+            }
         } catch (e: Exception) {
             appendOcrErrorLog(uri, e)
             throw e
@@ -60,7 +70,7 @@ class OcrProcessor(private val context: Context) {
         }
     }
 
-    // LOCAL STORAGE | NANO | 5pts | Archivos Locales: log de errores OCR en ocr_errors.txt dentro de filesDir para conservar trazas locales privadas de la app
+    // LOCAL STORAGE | WILLIAM | 5pts | Archivos Locales: log de errores OCR en ocr_errors.txt dentro de filesDir para conservar trazas locales privadas de la app
     private fun appendOcrErrorLog(uri: Uri, error: Exception) {
         try {
             val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
@@ -92,6 +102,12 @@ class OcrProcessor(private val context: Context) {
     // ── KEYWORDS ──────────────────────────────────────────────────────────────────
     // Ordenados por prioridad: el índice más bajo = mayor score al hacer match
     companion object {
+        // CACHING | NANO | 15pts | LruCache + personalización: cache compartido entre instancias de OcrProcessor, indexado por URI del recibo, con maxSize pequeño orientado a reintentos recientes y política LRU para expulsar primero el recibo menos usado; evita reprocesar ML Kit cuando el usuario selecciona el mismo archivo otra vez.
+        private val ocrResultCache = object : LruCache<String, OcrResult>(MAX_CACHED_RECEIPTS) {
+            override fun sizeOf(key: String, value: OcrResult): Int = 1
+        }
+        private const val MAX_CACHED_RECEIPTS = 10
+        private const val OCR_CACHE_TAG = "OCR_CACHE"
         private const val OCR_ERROR_LOG_FILE_NAME = "ocr_errors.txt"
         private val TOTAL_KEYWORDS = listOf(
             "total exacto", "total cop", "total a pagar", "total pagar",
