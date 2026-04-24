@@ -1,11 +1,14 @@
 package com.example.spendantt.data.repository
 
+import android.content.Context
+import android.net.Uri
 import com.example.spendantt.data.local.dao.UserDao
 import com.example.spendantt.data.local.entity.UserEntity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import java.io.File
 import java.security.MessageDigest
 
 class UserRepository(
@@ -147,6 +150,30 @@ class UserRepository(
 
     suspend fun getLastLoggedUser(): UserEntity? = userDao.getLastLoggedUser()
 
+    suspend fun updateLocalProfile(
+        context: Context,
+        userId: Int,
+        displayName: String,
+        avatarUri: Uri? = null
+    ): Result<UserEntity> {
+        return try {
+            val user = userDao.getUserById(userId)
+                ?: return Result.failure(Exception("User not found"))
+
+            val avatarPath = avatarUri?.let { copyAvatarToInternalStorage(context, userId, it) }
+                ?: user.avatarPath
+
+            val updatedUser = user.copy(
+                displayName = displayName.trim(),
+                avatarPath = avatarPath
+            )
+            userDao.updateUser(updatedUser)
+            Result.success(updatedUser)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun enableFingerprint(userId: Int, enable: Boolean) {
         val user = userDao.getUserById(userId) ?: return
         userDao.updateUser(user.copy(isFingerprintEnabled = enable))
@@ -159,6 +186,15 @@ class UserRepository(
     private fun hashPassword(password: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         return digest.digest(password.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    private fun copyAvatarToInternalStorage(context: Context, userId: Int, avatarUri: Uri): String {
+        val avatarsDir = File(context.filesDir, "avatars").apply { mkdirs() }
+        val avatarFile = File(avatarsDir, "user_${userId}_avatar.jpg")
+        context.contentResolver.openInputStream(avatarUri)?.use { input ->
+            avatarFile.outputStream().use { output -> input.copyTo(output) }
+        } ?: throw IllegalStateException("Could not read selected avatar")
+        return avatarFile.absolutePath
     }
 
     private fun mapFirebaseError(e: Exception): Exception {

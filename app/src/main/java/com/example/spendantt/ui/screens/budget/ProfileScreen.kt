@@ -19,10 +19,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.spendantt.R
 import com.example.spendantt.ui.theme.*
 import com.example.spendantt.viewmodel.BudgetViewModel
@@ -32,6 +34,7 @@ fun ProfileScreen(
     viewModel: BudgetViewModel,
     displayName: String,
     handle: String,
+    avatarPath: String?,
     onIncomeClick: () -> Unit,
     onGoalsClick: () -> Unit,
     onEditClick: () -> Unit,
@@ -92,12 +95,22 @@ fun ProfileScreen(
                     .background(Color(0xFFFFCDD2)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Avatar",
-                    tint = Color(0xFFE57373),
-                    modifier = Modifier.size(48.dp)
-                )
+                if (!avatarPath.isNullOrBlank()) {
+                    // CACHING | NANO | 5pts | Coil AsyncImage: carga el avatar local desde almacenamiento interno y reutiliza su caché de memoria/disco para evitar decodificar la imagen en cada recomposición
+                    AsyncImage(
+                        model = avatarPath,
+                        contentDescription = "Avatar",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Avatar",
+                        tint = Color(0xFFE57373),
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))

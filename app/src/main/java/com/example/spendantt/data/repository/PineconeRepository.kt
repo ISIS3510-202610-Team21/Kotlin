@@ -41,7 +41,6 @@ class PineconeRepository {
      * Un vector de 384 dimensiones × 100 vectores = String gigante que explota.
      * Con lotes de 10 cada request es pequeño y manejable.
      */
-    // MULTI-THREADING | Nano | 10pts (soporte) | withContext(Dispatchers.IO) en cada función suspend: el caller (ViewModel/Service en Main) puede invocar estas funciones suspend seguro; el trabajo HTTP/red se ejecuta en el pool I/O sin bloquear Main
     suspend fun seedDefaultLabels(labels: List<LabelEntity>) {
         withContext(Dispatchers.IO) {
             try {

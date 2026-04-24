@@ -6,6 +6,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,7 @@ import com.example.spendantt.viewmodel.NewExpenseViewModel
 import com.example.spendantt.viewmodel.NotificationsViewModel
 import com.example.spendantt.viewmodel.RegisterViewModel
 import com.example.spendantt.viewmodel.AnalyticsViewModel
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
@@ -97,8 +99,10 @@ fun AppNavigation(
 
     val db = AppDatabase.getInstance(context)
     val userRepository = remember { UserRepository(db.userDao()) }
+    val coroutineScope = rememberCoroutineScope()
     var displayName by remember { mutableStateOf("") }
     var handle by remember { mutableStateOf("") }
+    var avatarPath by remember { mutableStateOf<String?>(null) }
     var firebaseUid by remember { mutableStateOf<String?>(null) }
     var hideGoalsBottomBar by remember { mutableStateOf(false) }
 
@@ -107,6 +111,7 @@ fun AppNavigation(
             val user = userRepository.getUserById(currentUserId)
             displayName = user?.displayName ?: user?.username ?: ""
             handle = user?.handle ?: "@${user?.username ?: ""}"
+            avatarPath = user?.avatarPath
             firebaseUid = user?.firebaseUid
         }
     }
@@ -320,6 +325,7 @@ fun AppNavigation(
                     viewModel = budgetViewModel,
                     displayName = displayName,
                     handle = handle,
+                    avatarPath = avatarPath,
                     onIncomeClick = { navController.navigate(Screen.Budget.route) },
                     onGoalsClick = { navController.navigate(Screen.Goals.route) },
                     onEditClick = { navController.navigate(Screen.EditProfile.route) }
@@ -370,9 +376,23 @@ fun AppNavigation(
                 if (currentUserId == null) return@composable
                 EditProfileScreen(
                     currentDisplayName = displayName,
+                    currentAvatarPath = avatarPath,
                     onBackClick = { navController.popBackStack() },
-                    onSaveClick = { newDisplayName ->
-                        navController.popBackStack()
+                    onSaveClick = { newDisplayName, selectedAvatarUri ->
+                        coroutineScope.launch {
+                            val result = userRepository.updateLocalProfile(
+                                context = context.applicationContext,
+                                userId = currentUserId,
+                                displayName = newDisplayName,
+                                avatarUri = selectedAvatarUri
+                            )
+                            result.onSuccess { updatedUser ->
+                                displayName = updatedUser.displayName ?: updatedUser.username
+                                avatarPath = updatedUser.avatarPath
+                                handle = updatedUser.handle ?: "@${updatedUser.username}"
+                                navController.popBackStack()
+                            }
+                        }
                     }
                 )
             }

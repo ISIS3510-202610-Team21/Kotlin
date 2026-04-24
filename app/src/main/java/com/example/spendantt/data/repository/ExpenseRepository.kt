@@ -20,7 +20,6 @@ class ExpenseRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
     // MULTI-THREADING | NANO | 5pts | Corrutina con dispatcher explícito: CoroutineScope(Dispatchers.IO) dedicado para sincronizar gastos con Firestore en segundo plano
-    // LOCAL STORAGE | NANO | 10pts | BD Relacional Room: ExpenseEntity + LabelEntity con relación many-to-many (ExpenseLabelCrossRef) persistida en SQLite vía Room DAO
     private val syncScope = CoroutineScope(Dispatchers.IO)
 
     suspend fun insertExpense(

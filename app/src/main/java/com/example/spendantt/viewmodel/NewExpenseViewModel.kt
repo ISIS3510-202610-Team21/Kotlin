@@ -188,7 +188,7 @@ class NewExpenseViewModel(
     }
 
     private fun uploadReceiptToCloudinary(uri: Uri) {
-        // MULTI-THREADING | Dilan | 10pts | Una corrutina en Main (viewModelScope.launch) y una en I/O (withContext(Dispatchers.IO)): el upload al HTTP se hace en IO sin bloquear la UI
+        // MULTI-THREADING | NANO | 10pts | Una corrutina en Main (viewModelScope.launch) y una en I/O (withContext(Dispatchers.IO)): el upload al HTTP se hace en IO sin bloquear la UI
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isUploadingImage = true)
             try {

@@ -1,5 +1,8 @@
 package com.example.spendantt.ui.screens.budget
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,20 +19,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.spendantt.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen(
     currentDisplayName: String,
+    currentAvatarPath: String?,
     onBackClick: () -> Unit,
-    onSaveClick: (String) -> Unit,
+    onSaveClick: (String, Uri?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var displayName by remember { mutableStateOf(currentDisplayName) }
+    var selectedAvatarUri by remember { mutableStateOf<Uri?>(null) }
+    val avatarPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        selectedAvatarUri = uri
+    }
 
     Column(
         modifier = modifier
@@ -65,7 +77,7 @@ fun EditProfileScreen(
             )
 
             TextButton(
-                onClick = { onSaveClick(displayName) }
+                onClick = { onSaveClick(displayName, selectedAvatarUri) }
             ) {
                 Text(
                     text = "Save",
@@ -94,12 +106,34 @@ fun EditProfileScreen(
                         .background(Color(0xFFFFCDD2)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Avatar",
-                        tint = Color(0xFFE57373),
-                        modifier = Modifier.size(60.dp)
-                    )
+                    when {
+                        selectedAvatarUri != null -> {
+                            AsyncImage(
+                                model = selectedAvatarUri,
+                                contentDescription = "Avatar preview",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+
+                        !currentAvatarPath.isNullOrBlank() -> {
+                            AsyncImage(
+                                model = currentAvatarPath,
+                                contentDescription = "Avatar preview",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+
+                        else -> {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Avatar",
+                                tint = Color(0xFFE57373),
+                                modifier = Modifier.size(60.dp)
+                            )
+                        }
+                    }
                 }
 
                 // Botón de cámara en la esquina inferior derecha
@@ -111,7 +145,7 @@ fun EditProfileScreen(
                         .background(SpendAntBlack)
                         .border(2.dp, SpendAntBackground, CircleShape)
                         .clickable {
-                            // TODO: Implementar cambio de foto de perfil
+                            avatarPickerLauncher.launch("image/*")
                         },
                     contentAlignment = Alignment.Center
                 ) {
