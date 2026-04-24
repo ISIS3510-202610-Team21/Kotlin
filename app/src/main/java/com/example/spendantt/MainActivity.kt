@@ -19,6 +19,7 @@ import com.example.spendantt.data.service.IcsImportService
 import com.example.spendantt.ui.navigation.AppNavigation
 import com.example.spendantt.ui.navigation.Screen
 import com.example.spendantt.ui.theme.SpendAnttTheme
+import com.example.spendantt.util.ConnectivityObserver
 import com.example.spendantt.work.NotificationSyncScheduler
 import com.example.spendantt.work.NotificationTimeSanitizer
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,7 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         NotificationTimeSanitizer.sanitizeIfNeeded(this, "app_create")
         NotificationSyncScheduler.schedulePeriodic(this)
+        ConnectivityObserver.register(this)
 
         // Handle deep link from Bold expense notification
         intent?.getIntExtra(NotificationRepository.EXTRA_NAVIGATE_TO_EXPENSE_ID, -1)
@@ -126,6 +128,11 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ConnectivityObserver.unregister(this)
     }
 
     override fun onNewIntent(intent: Intent) {

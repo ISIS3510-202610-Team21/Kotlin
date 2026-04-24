@@ -18,6 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
@@ -44,9 +46,11 @@ import com.example.spendantt.ui.theme.CategoryBlue
 import com.example.spendantt.ui.theme.CategoryCoralPink
 import com.example.spendantt.ui.theme.CategoryOrange
 import com.example.spendantt.ui.theme.CategoryYellow
+import com.example.spendantt.ui.components.NoInternetBanner
 import com.example.spendantt.ui.theme.LabelIconMapper
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreenv2
+import com.example.spendantt.util.ConnectivityObserver
 import com.example.spendantt.viewmodel.HomeViewModel
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
@@ -134,6 +138,8 @@ private fun HomeScreenContent(
         }.toMap()
     }
 
+    val isConnected by ConnectivityObserver.isConnected.collectAsState()
+
     if (isLoading) {
         Box(
             modifier = Modifier
@@ -146,10 +152,12 @@ private fun HomeScreenContent(
         return
     }
 
+    Column(modifier = Modifier.fillMaxSize()) {
+    NoInternetBanner(visible = !isConnected)
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.weight(1f)
     ) {
         LazyColumn(
             state = listState,
@@ -323,6 +331,7 @@ private fun HomeScreenContent(
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
+    }
     }
 }
 

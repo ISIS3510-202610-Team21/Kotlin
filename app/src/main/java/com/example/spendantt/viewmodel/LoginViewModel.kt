@@ -9,9 +9,10 @@ import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.data.service.SyncService
 import com.example.spendantt.util.AnalyticsHelper
+import com.example.spendantt.util.ConnectivityObserver
 import kotlinx.coroutines.launch
 
-class LoginViewModel(context: Context) : ViewModel() {
+class LoginViewModel(private val context: Context) : ViewModel() {
 
     private val userRepository = UserRepository(AppDatabase.getInstance(context).userDao())
     private val syncService = SyncService(context)
@@ -30,6 +31,11 @@ class LoginViewModel(context: Context) : ViewModel() {
 
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
+
+    private val _offlineLoginBlocked = mutableStateOf(false)
+    val offlineLoginBlocked: State<Boolean> = _offlineLoginBlocked
+
+    fun dismissOfflineDialog() { _offlineLoginBlocked.value = false }
 
     // Solo letras, dígitos y guion bajo — sin espacios ni emojis
     fun onUsernameChange(value: String) {
@@ -69,6 +75,7 @@ class LoginViewModel(context: Context) : ViewModel() {
         // MULTI-THREADING | Dilan | 10pts | Múltiples corrutinas anidadas: launch{} anidado dentro de viewModelScope.launch{} para sincronizar Firebase en paralelo sin bloquear la respuesta al usuario
         viewModelScope.launch {
             try {
+                val isOnline = ConnectivityObserver.hasInternet(context)
                 val result = userRepository.login(username, password)
                 result.onSuccess { user ->
                     launch {
@@ -80,8 +87,13 @@ class LoginViewModel(context: Context) : ViewModel() {
                     _isLoading.value = false
                     onSuccess(user.id)
                 }.onFailure { exception ->
-                    _errorMessage.value = exception.message ?: "Error de login"
-                    _isLoading.value = false
+                    if (!isOnline) {
+                        _isLoading.value = false
+                        _offlineLoginBlocked.value = true
+                    } else {
+                        _errorMessage.value = exception.message ?: "Error de login"
+                        _isLoading.value = false
+                    }
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Error desconocido"

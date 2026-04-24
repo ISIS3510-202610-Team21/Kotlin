@@ -16,6 +16,7 @@ import com.example.spendantt.data.repository.LabelRepository
 import com.example.spendantt.data.service.AutoCategorizationService
 import com.example.spendantt.data.service.AutoCategorizationUsageTracker
 import com.example.spendantt.util.AnalyticsHelper
+import com.example.spendantt.util.ConnectivityObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,6 +55,7 @@ data class NewExpenseUiState(
     val allLabels: List<LabelEntity> = emptyList(),
     val labelsGroupedByCategory: Map<String, List<LabelEntity>> = emptyMap(),
     val showLabelPrompt: Boolean = false,
+    val showOfflineAutocat: Boolean = false,
     val pendingExpenseId: Int? = null
 )
 
@@ -286,6 +288,14 @@ class NewExpenseViewModel(
                     onSuccess = { newExpenseId ->
                         val id = newExpenseId.toInt()
                         if (state.selectedLabelIds.isEmpty()) {
+                            if (!ConnectivityObserver.hasInternet(context)) {
+                                _uiState.value = _uiState.value.copy(
+                                    isSaving = false,
+                                    showOfflineAutocat = true,
+                                    pendingExpenseId = id
+                                )
+                                return@fold
+                            }
                             val categorized = autoCategorizationService.categorizeExpense(id, name, firebaseUid)
                             if (!categorized) {
                                 _uiState.value = _uiState.value.copy(
@@ -347,6 +357,15 @@ class NewExpenseViewModel(
             isSaved = true,
             isSaving = false,
             showLabelPrompt = false,
+            pendingExpenseId = null
+        )
+    }
+
+    fun dismissOfflineAutocat() {
+        _uiState.value = _uiState.value.copy(
+            isSaved = true,
+            isSaving = false,
+            showOfflineAutocat = false,
             pendingExpenseId = null
         )
     }

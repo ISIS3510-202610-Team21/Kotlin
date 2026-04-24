@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -28,6 +29,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,9 +51,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.zIndex
 import com.example.spendantt.R
 import com.example.spendantt.ui.components.BlackButton
+import com.example.spendantt.ui.components.NoInternetBanner
 import com.example.spendantt.ui.components.SpendAntButton
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreenv2
+import com.example.spendantt.util.ConnectivityObserver
 import com.example.spendantt.viewmodel.LoginViewModel
 
 @Composable
@@ -65,6 +70,7 @@ fun LoginScreen(
     onUseManualLogin: (() -> Unit)? = null,
     manualFieldsEnabled: Boolean = true
 ) {
+    val isConnected by ConnectivityObserver.isConnected.collectAsState()
     val screenWidth = LocalConfiguration.current.screenWidthDp
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val uiScale = (screenWidth / 424f).coerceIn(0.93f, 1.12f)
@@ -80,9 +86,11 @@ fun LoginScreen(
     }
     val antYOffset = 0f
 
+    Column(modifier = Modifier.fillMaxSize()) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .weight(1f)
+            .fillMaxWidth()
             .background(SpendAntGreenv2)
     ) {
         Column(
@@ -286,6 +294,27 @@ fun LoginScreen(
                 .align(Alignment.BottomStart)
                 .offset(x = (-4).dp, y = (antYOffset * uiScale).dp)
                 .fillMaxWidth(antWidthFraction)
+        )
+
+    }
+    NoInternetBanner(visible = !isConnected)
+    }
+
+    if (viewModel.offlineLoginBlocked.value) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissOfflineDialog() },
+            title = { Text("No internet connection") },
+            text = {
+                Text(
+                    "Cannot login with an account that hasn't been used on this device before. " +
+                    "Your form data will remain as long as you don't close the app."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissOfflineDialog() }) {
+                    Text("OK")
+                }
+            }
         )
     }
 }

@@ -14,9 +14,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
 import com.example.spendantt.ui.components.IncomeCard
+import com.example.spendantt.ui.components.NoInternetBanner
 import com.example.spendantt.ui.components.SpendAntHeader
 import com.example.spendantt.ui.screens.goal.GoalActionButton
 import com.example.spendantt.ui.theme.*
+import com.example.spendantt.util.ConnectivityObserver
 import com.example.spendantt.viewmodel.BudgetViewModel
 
 @Composable
@@ -27,9 +29,11 @@ fun BudgetAndIncomeScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isConnected by ConnectivityObserver.isConnected.collectAsState()
 
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(SpendAntWhite)
     ) {
@@ -40,6 +44,8 @@ fun BudgetAndIncomeScreen(
             onClose = null,
             onConfirm = null
         )
+
+        NoInternetBanner(visible = !isConnected)
 
         // ── LISTA DE INGRESOS ─────────────────────────────────
         if (uiState.isLoading) {
@@ -106,6 +112,7 @@ fun BudgetAndIncomeScreen(
                 onClick = onNewIncome
             )
         }
+    }
     }
 
     // ── MENSAJES DE ERROR ─────────────────────────────────────

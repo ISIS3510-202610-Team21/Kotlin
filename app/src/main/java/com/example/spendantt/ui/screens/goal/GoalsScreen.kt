@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,10 +42,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
+import com.example.spendantt.ui.components.NoInternetBanner
 import com.example.spendantt.ui.components.SpendAntHeader
 import com.example.spendantt.ui.theme.SpendAntGreen
 import com.example.spendantt.ui.theme.SpendAntTextSecondary
 import com.example.spendantt.ui.theme.SpendAntWhite
+import com.example.spendantt.util.ConnectivityObserver
 import com.example.spendantt.viewmodel.GoalListItemUiState
 import com.example.spendantt.viewmodel.GoalsViewModel
 import java.text.SimpleDateFormat
@@ -91,59 +94,60 @@ fun GoalsScreen(
     onNewGoalClick: () -> Unit
 ) {
     var goalPendingDeletion by remember { mutableStateOf<GoalListItemUiState?>(null) }
+    val isConnected by ConnectivityObserver.isConnected.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SpendAntWhite)
-    ) {
-        SpendAntHeader(
-            title = "Goals",
-            onClose = null,
-            onConfirm = null
-        )
-
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = SpendAntGreen)
-            }
-            return
-        }
-
-        if (goals.isEmpty()) {
-            EmptyGoalsState(onNewGoalClick = onNewGoalClick)
-            return
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(goals, key = { it.id }) { goal ->
-                GoalListCard(
-                    goal = goal,
-                    onClick = { onGoalClick(goal.id) },
-                    onDeleteClick = { goalPendingDeletion = goal }
-                )
-            }
-        }
-
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .background(SpendAntWhite)
         ) {
-            GoalActionButton(
-                text = "New Goal",
-                onClick = onNewGoalClick
+            SpendAntHeader(
+                title = "Goals",
+                onClose = null,
+                onConfirm = null
             )
+
+            NoInternetBanner(visible = !isConnected)
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = SpendAntGreen)
+                }
+            } else if (goals.isEmpty()) {
+                EmptyGoalsState(onNewGoalClick = onNewGoalClick)
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(goals, key = { it.id }) { goal ->
+                        GoalListCard(
+                            goal = goal,
+                            onClick = { onGoalClick(goal.id) },
+                            onDeleteClick = { goalPendingDeletion = goal }
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    GoalActionButton(
+                        text = "New Goal",
+                        onClick = onNewGoalClick
+                    )
+                }
+            }
         }
     }
 

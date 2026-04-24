@@ -47,6 +47,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,11 +80,13 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.spendantt.BuildConfig
 import com.example.spendantt.R
+import com.example.spendantt.ui.components.NoInternetBanner
 import com.example.spendantt.ui.screens.labels.LabelsScreen
 import com.example.spendantt.ui.theme.SpendAntBlack
 import com.example.spendantt.ui.theme.SpendAntFontFamily
 import com.example.spendantt.ui.theme.SpendAntGreen
 import com.example.spendantt.ui.theme.SpendAntWhite
+import com.example.spendantt.util.ConnectivityObserver
 import com.example.spendantt.viewmodel.NewExpenseViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -116,12 +120,36 @@ fun NewExpenseScreen(
     onSaved: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isConnected by ConnectivityObserver.isConnected.collectAsState()
     var currentScreen by remember { mutableStateOf(ExpenseScreenState.FORM) }
+    var showOfflineMapPopup by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.showLabelPrompt) {
         if (uiState.showLabelPrompt) {
             currentScreen = ExpenseScreenState.LABEL_PROMPT
         }
+    }
+
+    if (showOfflineMapPopup) {
+        AlertDialog(
+            onDismissRequest = { showOfflineMapPopup = false },
+            title = { Text("No internet connection") },
+            text = { Text("Cannot open the map without internet connection. Please connect to the internet and try again.") },
+            confirmButton = {
+                TextButton(onClick = { showOfflineMapPopup = false }) { Text("OK") }
+            }
+        )
+    }
+
+    if (uiState.showOfflineAutocat) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissOfflineAutocat() },
+            title = { Text("No internet connection") },
+            text = { Text("Auto-categorization is not available without internet. Your expense has been saved locally and will sync when connection is restored.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissOfflineAutocat() }) { Text("OK") }
+            }
+        )
     }
 
     when (currentScreen) {
@@ -131,7 +159,13 @@ fun NewExpenseScreen(
                 onClose = onClose,
                 onSaved = onSaved,
                 onLabelClick = { currentScreen = ExpenseScreenState.LABELS },
-                onLocationClick = { currentScreen = ExpenseScreenState.MAP_PICKER }
+                onLocationClick = {
+                    if (isConnected) {
+                        currentScreen = ExpenseScreenState.MAP_PICKER
+                    } else {
+                        showOfflineMapPopup = true
+                    }
+                }
             )
         }
 
@@ -280,6 +314,8 @@ private fun NewExpenseFormContent(
         }
     }
 
+    val isConnected by ConnectivityObserver.isConnected.collectAsState()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -296,6 +332,8 @@ private fun NewExpenseFormContent(
                 onClose = onClose,
                 onConfirm = { viewModel.saveExpense() }
             )
+
+            NoInternetBanner(visible = !isConnected)
 
             Spacer(modifier = Modifier.height(96.dp))
 
