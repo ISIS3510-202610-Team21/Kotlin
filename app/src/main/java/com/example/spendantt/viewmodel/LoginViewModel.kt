@@ -87,17 +87,18 @@ class LoginViewModel(private val context: Context) : ViewModel() {
                     _isLoading.value = false
                     onSuccess(user.id)
                 }.onFailure { exception ->
-                    if (!isOnline) {
-                        _isLoading.value = false
+                    _isLoading.value = false
+                    if (!isOnline || !ConnectivityObserver.hasInternet(context)) {
                         _offlineLoginBlocked.value = true
                     } else {
                         _errorMessage.value = exception.message ?: "Error de login"
-                        _isLoading.value = false
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Error desconocido"
                 _isLoading.value = false
+                _errorMessage.value = if (!ConnectivityObserver.hasInternet(context))
+                    "Connection lost. Please check your internet and try again."
+                else e.message ?: "Error desconocido"
             }
         }
     }
