@@ -7,9 +7,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
+import com.example.spendantt.util.ConnectivityObserver
 import kotlinx.coroutines.launch
 
-class RegisterViewModel(context: Context) : ViewModel() {
+class RegisterViewModel(private val context: Context) : ViewModel() {
 
     private val userRepository = UserRepository(AppDatabase.getInstance(context).userDao())
 
@@ -30,6 +31,11 @@ class RegisterViewModel(context: Context) : ViewModel() {
 
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
+
+    private val _offlineBlocked = mutableStateOf(false)
+    val offlineBlocked: State<Boolean> = _offlineBlocked
+
+    fun dismissOfflineDialog() { _offlineBlocked.value = false }
 
     // Solo letras, dígitos y guion bajo — sin espacios ni emojis
     fun onUsernameChange(value: String) {
@@ -90,6 +96,11 @@ class RegisterViewModel(context: Context) : ViewModel() {
 
         _isLoading.value = true
         viewModelScope.launch {
+            if (!ConnectivityObserver.hasInternet(context)) {
+                _isLoading.value = false
+                _offlineBlocked.value = true
+                return@launch
+            }
             try {
                 val result = userRepository.register(
                     username = username,
