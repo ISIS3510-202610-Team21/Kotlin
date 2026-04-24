@@ -96,7 +96,7 @@ fun ProfileScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (!avatarPath.isNullOrBlank()) {
-                    // CACHING | NANO | 5pts | Coil AsyncImage: carga el avatar local desde almacenamiento interno y reutiliza su caché de memoria/disco para evitar decodificar la imagen en cada recomposición
+                    // CACHING | Nano | 5pts | Coil AsyncImage: carga el avatar local desde almacenamiento interno y reutiliza su caché de memoria/disco para evitar decodificar la imagen en cada recomposición
                     AsyncImage(
                         model = avatarPath,
                         contentDescription = "Avatar",
@@ -151,7 +151,6 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // LOCAL STORAGE | Dilan | 5pts | Archivos Locales: dispara UserDataExporter que escribe user+expenses+goals+incomes en un .json dentro de filesDir (almacenamiento interno privado)
             Button(
                 onClick = { viewModel.exportUserData(context) },
                 shape = RoundedCornerShape(8.dp),

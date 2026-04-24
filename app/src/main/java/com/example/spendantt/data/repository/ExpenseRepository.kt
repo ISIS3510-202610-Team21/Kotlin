@@ -19,7 +19,7 @@ class ExpenseRepository(
     private val labelDao: LabelDao,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
-    // MULTI-THREADING | NANO | 5pts | Corrutina con dispatcher explícito: CoroutineScope(Dispatchers.IO) dedicado para sincronizar gastos con Firestore en segundo plano
+    // MULTI-THREADING | Dilan | 5pts | Corrutina con dispatcher explícito: CoroutineScope(Dispatchers.IO) dedicado para sincronizar gastos con Firestore en segundo plano
     private val syncScope = CoroutineScope(Dispatchers.IO)
 
     suspend fun insertExpense(

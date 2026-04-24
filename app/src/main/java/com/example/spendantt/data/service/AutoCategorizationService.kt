@@ -101,7 +101,7 @@ class AutoCategorizationService(
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    // LOCAL STORAGE | NANO | 5pts | Archivos Locales: guarda en autocategorization_fallbacks.txt cada gasto que no pudo autocategorizarse y pasó a etiquetado manual
+    // LOCAL STORAGE | Nano | 5pts | Archivos Locales: guarda en autocategorization_fallbacks.txt cada gasto que no pudo autocategorizarse y pasó a etiquetado manual
     private fun appendAutoCategorizationFallbackLog(
         expenseId: Int,
         expenseName: String,
