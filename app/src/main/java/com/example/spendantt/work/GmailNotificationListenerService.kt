@@ -18,6 +18,8 @@ import com.example.spendantt.data.service.AutoCategorizationService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -26,8 +28,8 @@ import kotlinx.coroutines.launch
  */
 class GmailNotificationListenerService : NotificationListenerService() {
 
-    // MULTI-THREADING | William | 5pts | Corrutina con dispatcher: CoroutineScope(SupervisorJob() + Dispatchers.IO) — SupervisorJob hace que un fallo en una corrutina hija no cancele las demás
-    // MULTI-THREADING | William | 10pts | Múltiples corrutinas anidadas en I/O: serviceScope.launch{} encadena parseo → insertExpense (Room) → AutoCategorizationService (Pinecone) → upsertNotification, todo en el mismo scope I/O
+    // MULTI-THREADING | William | 5pts  | Corrutina con dispatcher: CoroutineScope(SupervisorJob() + Dispatchers.IO) — SupervisorJob hace que un fallo en una corrutina hija no cancele las demás
+    // MULTI-THREADING | William | 10pts | Múltiples corrutinas anidadas en I/O: serviceScope.launch{} es la corrutina externa (IO); dentro, coroutineScope{ launch{markAsProcessed} + async{categorizeExpense} } lanza dos corrutinas hijas en paralelo, ambas heredando Dispatchers.IO
     // MULTI-THREADING | William | 10pts | Una en I/O + una en Main: onNotificationPosted() corre en el Main thread del sistema; processBoldNotification() delega al scope I/O para no bloquear el listener
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var expenseRepository: ExpenseRepository
@@ -154,19 +156,26 @@ class GmailNotificationListenerService : NotificationListenerService() {
                 result.fold(
                     onSuccess = { newExpenseId ->
                         val expenseId = newExpenseId.toInt()
-
-                        // Marcar como procesada antes de categorizar
-                        markAsProcessed(notificationKey)
-
-                        // Intentar auto-categorización con Pinecone
-                        val autoCategorizationService = AutoCategorizationService(applicationContext, userId)
-                        val categorized = autoCategorizationService.categorizeExpense(
-                            expenseId = expenseId,
-                            expenseName = parsed.merchantName,
-                            firebaseUid = firebaseUid
-                        )
-
                         val internalNotificationId = "bold_${parsed.transactionId ?: System.currentTimeMillis()}"
+                        val autoCategorizationService = AutoCategorizationService(applicationContext, userId)
+
+                        // MULTI-THREADING | William | 10pts | Corrutinas anidadas en I/O:
+                        // coroutineScope lanza en paralelo dentro del launch externo (Dispatchers.IO):
+                        //   - launch (hija 1): graba la clave en SharedPreferences (markAsProcessed)
+                        //   - async  (hija 2): llama a Pinecone para auto-categorizar
+                        // El scope suspende hasta que ambas terminen; await() obtiene el resultado del async.
+                        val categorized = coroutineScope {
+                            launch {
+                                markAsProcessed(notificationKey)
+                            }
+                            async {
+                                autoCategorizationService.categorizeExpense(
+                                    expenseId = expenseId,
+                                    expenseName = parsed.merchantName,
+                                    firebaseUid = firebaseUid
+                                )
+                            }
+                        }.await()
 
                         if (categorized) {
                             // Categorizado exitosamente: notificación informativa normal

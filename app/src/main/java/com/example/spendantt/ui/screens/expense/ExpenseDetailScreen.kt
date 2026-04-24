@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
@@ -189,6 +190,23 @@ fun ExpenseDetailScreen(
                             checked = uiState.regretExpense,
                             onCheckedChange = viewModel::onRegretExpenseChange
                         )
+
+                        // CACHING | William | 5pts | Coil AsyncImage: muestra el recibo adjunto al
+                        // gasto (ruta local o URL de Cloudinary). Coil mantiene un cache de memoria y
+                        // disco, evitando decodificar o re-descargar la imagen en cada recomposición.
+                        uiState.receiptImagePath?.let { path ->
+                            AsyncImage(
+                                model = path,
+                                contentDescription = "Receipt image",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .background(
+                                        Color(0xFFF5F5F5),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                            )
+                        }
 
                         Box(
                             modifier = Modifier

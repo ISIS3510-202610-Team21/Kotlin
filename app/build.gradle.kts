@@ -69,6 +69,8 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation(libs.androidx.core.ktx)
