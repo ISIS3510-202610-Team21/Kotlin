@@ -70,7 +70,7 @@ class OcrProcessor(private val context: Context) {
         }
     }
 
-    // LOCAL STORAGE | WILLIAM | 5pts | Archivos Locales: log de errores OCR en ocr_errors.txt dentro de filesDir para conservar trazas locales privadas de la app
+    // LOCAL STORAGE | William | 5pts | Archivos Locales: log de errores OCR en ocr_errors.txt dentro de filesDir para conservar trazas locales privadas de la app
     private fun appendOcrErrorLog(uri: Uri, error: Exception) {
         try {
             val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
@@ -102,7 +102,7 @@ class OcrProcessor(private val context: Context) {
     // ── KEYWORDS ──────────────────────────────────────────────────────────────────
     // Ordenados por prioridad: el índice más bajo = mayor score al hacer match
     companion object {
-        // CACHING | NANO | 15pts | LruCache + personalización: cache compartido entre instancias de OcrProcessor, indexado por URI del recibo, con maxSize pequeño orientado a reintentos recientes y política LRU para expulsar primero el recibo menos usado; evita reprocesar ML Kit cuando el usuario selecciona el mismo archivo otra vez.
+        // CACHING | Nano | 15pts | LruCache + personalización: cache compartido entre instancias de OcrProcessor, indexado por URI del recibo, con maxSize pequeño orientado a reintentos recientes y política LRU para expulsar primero el recibo menos usado; evita reprocesar ML Kit cuando el usuario selecciona el mismo archivo otra vez.
         private val ocrResultCache = object : LruCache<String, OcrResult>(MAX_CACHED_RECEIPTS) {
             override fun sizeOf(key: String, value: OcrResult): Int = 1
         }

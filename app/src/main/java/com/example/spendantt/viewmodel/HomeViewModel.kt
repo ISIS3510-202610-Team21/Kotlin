@@ -264,7 +264,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         }
     }
 
-    // MULTI-THREADING | NANO | 10pts | Corrutina padre en Main (viewModelScope.launch) que delega a Dispatchers.IO y dentro crea corrutinas hijas con async para leer gastos/notificaciones en paralelo y ejecutar limpieza de notificaciones sin bloquear UI.
+    // MULTI-THREADING | Nano | 10pts | Corrutina padre en Main (viewModelScope.launch) que delega a Dispatchers.IO y dentro crea corrutinas hijas con async para leer gastos/notificaciones en paralelo y ejecutar limpieza de notificaciones sin bloquear UI.
     private suspend fun loadHomeSnapshotInParallel(now: Long): HomeSnapshot =
         withContext(Dispatchers.IO) {
             coroutineScope {
