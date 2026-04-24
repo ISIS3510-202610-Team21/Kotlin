@@ -3,6 +3,7 @@ package com.example.spendantt.data.service
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.util.LruCache
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.ExpenseRepository
 import com.example.spendantt.data.repository.LabelRepository
@@ -142,6 +143,24 @@ class AutoCategorizationService(
             expenseName: String,
             firebaseUid: String?
         ): Boolean {
+            val cacheKey = expenseName.lowercase().trim()
+
+            // CACHING | William | 10pts | LruCache: caché de resultados Pinecone indexado por nombre
+            // de comerciante normalizado (lowercase + trim). maxSize=50 cubre la variedad típica de
+            // comercios de un usuario sin exceder memoria. Compartido en companion object para persistir
+            // entre instancias de AutoCategorizationService (cada notificación Bold crea una nueva).
+            // Evita llamadas redundantes a la API cuando el mismo comercio aparece en varias
+            // notificaciones consecutivas (ej: compras recurrentes en el mismo establecimiento).
+            val cachedLabelName = merchantLabelCache.get(cacheKey)
+            if (cachedLabelName != null) {
+                val labels = labelRepository.getLabelsByUser(userId).first()
+                val matchedLabel = labels.firstOrNull {
+                    it.name.lowercase() == cachedLabelName.lowercase()
+                } ?: return false
+                expenseRepository.categorizeExpense(expenseId, matchedLabel.id, firebaseUid)
+                return true
+            }
+
             ensurePineconeSeeded()
 
             val labelName = pineconeRepository.findLabelForExpense(expenseName) ?: return false
@@ -151,6 +170,7 @@ class AutoCategorizationService(
                 it.name.lowercase() == labelName.lowercase()
             } ?: return false
 
+            merchantLabelCache.put(cacheKey, labelName)
             expenseRepository.categorizeExpense(expenseId, matchedLabel.id, firebaseUid)
             return true
         }
@@ -169,5 +189,7 @@ class AutoCategorizationService(
     companion object {
         private const val AUTO_CATEGORIZATION_FALLBACK_LOG_FILE_NAME =
             "autocategorization_fallbacks.txt"
+
+        private val merchantLabelCache = LruCache<String, String>(50)
     }
 }
