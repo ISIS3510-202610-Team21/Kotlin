@@ -225,6 +225,7 @@ fun LoginScreen(
                     fontSize = 14.sp,
                     fontFamily = SpendAntFontFamily,
                     fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
             }

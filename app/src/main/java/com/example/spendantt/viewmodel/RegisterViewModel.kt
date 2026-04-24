@@ -111,12 +111,16 @@ class RegisterViewModel(private val context: Context) : ViewModel() {
                     _isLoading.value = false
                     onSuccess(user.id)
                 }.onFailure { exception ->
-                    _errorMessage.value = exception.message ?: "Registration error"
                     _isLoading.value = false
+                    _errorMessage.value = if (!ConnectivityObserver.hasInternet(context))
+                        "Connection lost. Please check your internet and try again."
+                    else exception.message ?: "Registration error"
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error"
                 _isLoading.value = false
+                _errorMessage.value = if (!ConnectivityObserver.hasInternet(context))
+                    "Connection lost. Please check your internet and try again."
+                else e.message ?: "Unknown error"
             }
         }
     }
