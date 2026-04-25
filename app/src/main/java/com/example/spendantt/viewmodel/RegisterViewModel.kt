@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.util.ConnectivityObserver
+import com.google.firebase.FirebaseNetworkException
 import kotlinx.coroutines.launch
 
 class RegisterViewModel(private val context: Context) : ViewModel() {
@@ -112,17 +113,25 @@ class RegisterViewModel(private val context: Context) : ViewModel() {
                     onSuccess(user.id)
                 }.onFailure { exception ->
                     _isLoading.value = false
-                    _errorMessage.value = if (!ConnectivityObserver.hasInternet(context))
+                    _errorMessage.value = if (isNetworkError(exception))
                         "Connection lost. Please check your internet and try again."
                     else exception.message ?: "Registration error"
                 }
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = if (!ConnectivityObserver.hasInternet(context))
+                _errorMessage.value = if (isNetworkError(e))
                     "Connection lost. Please check your internet and try again."
                 else e.message ?: "Unknown error"
             }
         }
+    }
+
+    private fun isNetworkError(e: Throwable): Boolean {
+        if (e is FirebaseNetworkException) return true
+        if (!ConnectivityObserver.isConnected.value) return true
+        val msg = e.message?.lowercase() ?: ""
+        return msg.contains("network") || msg.contains("internal error") ||
+               msg.contains("timeout") || msg.contains("interrupted")
     }
 
     companion object {

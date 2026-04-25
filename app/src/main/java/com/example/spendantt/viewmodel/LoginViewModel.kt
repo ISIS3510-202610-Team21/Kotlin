@@ -10,6 +10,7 @@ import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.data.service.SyncService
 import com.example.spendantt.util.AnalyticsHelper
 import com.example.spendantt.util.ConnectivityObserver
+import com.google.firebase.FirebaseNetworkException
 import kotlinx.coroutines.launch
 
 class LoginViewModel(private val context: Context) : ViewModel() {
@@ -88,7 +89,7 @@ class LoginViewModel(private val context: Context) : ViewModel() {
                     onSuccess(user.id)
                 }.onFailure { exception ->
                     _isLoading.value = false
-                    if (!isOnline || !ConnectivityObserver.hasInternet(context)) {
+                    if (!isOnline || isNetworkError(exception)) {
                         _offlineLoginBlocked.value = true
                     } else {
                         _errorMessage.value = exception.message ?: "Error de login"
@@ -96,11 +97,19 @@ class LoginViewModel(private val context: Context) : ViewModel() {
                 }
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = if (!ConnectivityObserver.hasInternet(context))
+                _errorMessage.value = if (isNetworkError(e))
                     "Connection lost. Please check your internet and try again."
                 else e.message ?: "Error desconocido"
             }
         }
+    }
+
+    private fun isNetworkError(e: Throwable): Boolean {
+        if (e is FirebaseNetworkException) return true
+        if (!ConnectivityObserver.isConnected.value) return true
+        val msg = e.message?.lowercase() ?: ""
+        return msg.contains("network") || msg.contains("internal error") ||
+               msg.contains("timeout") || msg.contains("interrupted")
     }
 
     companion object {
