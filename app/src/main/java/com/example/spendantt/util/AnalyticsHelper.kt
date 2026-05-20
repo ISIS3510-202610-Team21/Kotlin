@@ -1,132 +1,102 @@
 package com.example.spendantt.util
 
 import android.content.Context
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.analytics.logEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
-/**
- * AnalyticsHelper
- *
- * Centraliza todos los eventos de Firebase Analytics del pipeline.
- * Cada método corresponde a una Business Question (BQ).
- *
- * BQ2 — días desde último gasto
- * BQ3 — frecuencia de gastos sin categorizar
- * BQ4 — hora más común de registro
- * BQ5 — gastos pequeños recurrentes en 3 meses
- * BQ6 — método de registro menos usado
- */
 object AnalyticsHelper {
 
-    private fun analytics(context: Context) = FirebaseAnalytics.getInstance(context)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-
-    // ── BQ1: crash por módulo ─────────────────────────────────
+    // ── BQ1: crash por módulo ─────────────────────────────────────────────────
     fun logModuleCrash(context: Context, moduleName: String, errorMessage: String) {
         android.util.Log.d("ANALYTICS", "Crash en módulo: $moduleName — $errorMessage")
-        analytics(context).logEvent("module_crash") {
-            param("module_name", moduleName)
-            param("error_message", errorMessage.take(100))
+        scope.launch {
+            AnalyticsApiClient.post("/events/crash", mapOf(
+                "module_name" to moduleName,
+                "error_message" to errorMessage.take(100),
+            ))
         }
     }
 
-    // ── BQ2: días desde último gasto ──────────────────────────
-    /**
-     * Loggea cuántos días han pasado desde el último gasto registrado.
-     * Permite detectar usuarios inactivos y disparar recordatorios.
-     * Parámetros: days_since_last_expense (Int)
-     */
-    fun logDaysSinceLastExpense(context: Context, days: Int) {
-        android.util.Log.d("ANALYTICS", "Enviando a Firebase: days_since_last_expense = $days")
-        analytics(context).logEvent("days_since_last_expense") {
-            param("days", days.toLong())
-            param("is_inactive", if (days >= 3) "true" else "false")
+    // ── BQ2: días desde último gasto ──────────────────────────────────────────
+    fun logDaysSinceLastExpense(context: Context, userId: Int, days: Int) {
+        android.util.Log.d("ANALYTICS", "days_since_last_expense = $days (userId=$userId)")
+        scope.launch {
+            AnalyticsApiClient.post("/events/days-since-expense", mapOf(
+                "user_id" to userId,
+                "days" to days,
+                "is_inactive" to (days >= 3),
+            ))
         }
     }
 
-    // ── BQ3: frecuencia de gastos sin categorizar ─────────────
-    /**
-     * Loggea el porcentaje de gastos sin categorizar del usuario.
-     * Permite identificar usuarios que no usan bien las labels.
-     * Parámetros: uncategorized_count (Int), total_count (Int), percentage (Double)
-     */
-    fun logUncategorizedExpenseRate(
-        context: Context,
-        uncategorizedCount: Int,
-        totalCount: Int
-    ) {
-        val percentage = if (totalCount > 0) {
-            (uncategorizedCount.toDouble() / totalCount * 100).toLong()
-        } else 0L
-
-        analytics(context).logEvent("uncategorized_expense_rate") {
-            param("uncategorized_count", uncategorizedCount.toLong())
-            param("total_count", totalCount.toLong())
-            param("percentage", percentage)
+    // ── BQ3: OCR edit rate ────────────────────────────────────────────────────
+    fun logOcrEditRate(context: Context, userId: Int, fieldsPopulated: Int, fieldsEdited: Int) {
+        val rate = if (fieldsPopulated > 0) fieldsEdited.toDouble() / fieldsPopulated else 0.0
+        android.util.Log.d("ANALYTICS", "ocr_edit_rate = $rate ($fieldsEdited/$fieldsPopulated)")
+        scope.launch {
+            AnalyticsApiClient.post("/events/ocr-edit-rate", mapOf(
+                "user_id" to userId,
+                "fields_populated" to fieldsPopulated,
+                "fields_edited" to fieldsEdited,
+                "edit_rate" to rate,
+            ))
         }
     }
 
-    // ── BQ4: hora más común de registro ──────────────────────
-    /**
-     * Loggea la hora del día en que el usuario registra más gastos.
-     * Permite personalizar recordatorios a la hora más activa.
-     * Parámetros: most_active_hour (Int 0-23), session (morning/afternoon/night)
-     */
-    fun logMostActiveHour(context: Context, hour: Int) {
+    // ── BQ4: hora más activa ──────────────────────────────────────────────────
+    fun logMostActiveHour(context: Context, userId: Int, hour: Int) {
         val session = when (hour) {
             in 6..11 -> "morning"
             in 12..17 -> "afternoon"
             in 18..22 -> "evening"
             else -> "night"
         }
-        analytics(context).logEvent("most_active_hour") {
-            param("hour", hour.toLong())
-            param("session", session)
+        scope.launch {
+            AnalyticsApiClient.post("/events/active-hour", mapOf(
+                "user_id" to userId,
+                "hour" to hour,
+                "session" to session,
+            ))
         }
     }
 
-    // ── BQ5: gastos pequeños recurrentes en 3 meses ───────────
-    /**
-     * Loggea cuántos gastos pequeños recurrentes tiene el usuario.
-     * Un gasto pequeño = menor al 5% del ingreso diario promedio.
-     * Parámetros: count (Int), total_amount (Double)
-     */
-    fun logSmallRecurringExpenses(
-        context: Context,
-        count: Int,
-        totalAmount: Double
-    ) {
-        analytics(context).logEvent("small_recurring_expenses") {
-            param("count", count.toLong())
-            param("total_amount", totalAmount.toLong())
+    // ── BQ5: gastos pequeños recurrentes ─────────────────────────────────────
+    fun logSmallRecurringExpenses(context: Context, userId: Int, count: Int, totalAmount: Double) {
+        scope.launch {
+            AnalyticsApiClient.post("/events/small-recurring", mapOf(
+                "user_id" to userId,
+                "count" to count,
+                "total_amount" to totalAmount,
+            ))
         }
     }
 
-    // ── BQ6: método de registro menos usado ──────────────────
-    /**
-     * Loggea la distribución de métodos de registro de gastos.
-     * manual = escrito a mano, ocr = scan de recibo, google_pay = importado
-     * Permite identificar qué funcionalidad tiene menos adopción.
-     * Parámetros: manual_count, ocr_count, google_pay_count, least_used_method
-     */
+    // ── BQ6: métodos de registro ──────────────────────────────────────────────
     fun logExpenseRegistrationMethods(
         context: Context,
+        userId: Int,
         manualCount: Int,
         ocrCount: Int,
-        googlePayCount: Int
+        googlePayCount: Int,
     ) {
         val leastUsed = mapOf(
             "manual" to manualCount,
             "ocr" to ocrCount,
-            "ocr" to ocrCount,
-            "google_pay" to googlePayCount
+            "google_pay" to googlePayCount,
         ).minByOrNull { it.value }?.key ?: "none"
 
-        analytics(context).logEvent("expense_registration_methods") {
-            param("manual_count", manualCount.toLong())
-            param("ocr_count", ocrCount.toLong())
-            param("google_pay_count", googlePayCount.toLong())
-            param("least_used_method", leastUsed)
+        scope.launch {
+            AnalyticsApiClient.post("/events/registration-methods", mapOf(
+                "user_id" to userId,
+                "manual_count" to manualCount,
+                "ocr_count" to ocrCount,
+                "google_pay_count" to googlePayCount,
+                "least_used_method" to leastUsed,
+            ))
         }
     }
 }

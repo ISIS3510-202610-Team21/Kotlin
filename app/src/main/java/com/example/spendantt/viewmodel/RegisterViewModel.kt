@@ -10,6 +10,8 @@ import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.util.ConnectivityObserver
 import com.google.firebase.FirebaseNetworkException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 
 class RegisterViewModel(private val context: Context) : ViewModel() {
 
@@ -96,27 +98,33 @@ class RegisterViewModel(private val context: Context) : ViewModel() {
         }
 
         _isLoading.value = true
-        viewModelScope.launch {
+
+        val registrationJob = viewModelScope.launch {
             if (!ConnectivityObserver.hasInternet(context)) {
                 _isLoading.value = false
                 _offlineBlocked.value = true
                 return@launch
             }
             try {
-                val result = userRepository.register(
-                    username = username,
-                    email = email,
-                    password = password
-                )
-                result.onSuccess { user ->
-                    _isLoading.value = false
-                    onSuccess(user.id)
-                }.onFailure { exception ->
-                    _isLoading.value = false
-                    _errorMessage.value = if (isNetworkError(exception))
-                        "Connection lost. Please check your internet and try again."
-                    else exception.message ?: "Registration error"
+                withTimeout(15_000L) {
+                    val result = userRepository.register(
+                        username = username,
+                        email = email,
+                        password = password
+                    )
+                    result.onSuccess { user ->
+                        _isLoading.value = false
+                        onSuccess(user.id)
+                    }.onFailure { exception ->
+                        _isLoading.value = false
+                        _errorMessage.value = if (isNetworkError(exception))
+                            "Connection lost. Please check your internet and try again."
+                        else exception.message ?: "Registration error"
+                    }
                 }
+            } catch (_: TimeoutCancellationException) {
+                _isLoading.value = false
+                _errorMessage.value = "Connection lost. Please check your internet and try again."
             } catch (e: Exception) {
                 _isLoading.value = false
                 _errorMessage.value = if (isNetworkError(e))
@@ -124,6 +132,19 @@ class RegisterViewModel(private val context: Context) : ViewModel() {
                 else e.message ?: "Unknown error"
             }
         }
+
+        // Cancela el registro si la conexión se pierde mientras carga
+        val connectivityWatcher = viewModelScope.launch {
+            ConnectivityObserver.isConnected.collect { connected ->
+                if (!connected && _isLoading.value) {
+                    registrationJob.cancel()
+                    _isLoading.value = false
+                    _errorMessage.value = "Connection lost. Please check your internet and try again."
+                    return@collect
+                }
+            }
+        }
+        registrationJob.invokeOnCompletion { connectivityWatcher.cancel() }
     }
 
     private fun isNetworkError(e: Throwable): Boolean {

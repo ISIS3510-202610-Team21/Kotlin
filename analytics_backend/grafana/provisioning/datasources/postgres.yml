@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: SpendAntt Analytics
+    uid: spendantt-pg
+    type: postgres
+    url: db:5432
+    database: spendantt_analytics
+    user: postgres
+    secureJsonData:
+      password: postgres
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+    isDefault: true

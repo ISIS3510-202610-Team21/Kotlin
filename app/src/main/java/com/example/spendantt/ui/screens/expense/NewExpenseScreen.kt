@@ -620,6 +620,7 @@ internal fun MapPickerScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val isConnected by ConnectivityObserver.isConnected.collectAsState()
     val defaultLatLng = remember(initialLatitude, initialLongitude) {
         if (initialLatitude != null && initialLongitude != null) {
             LatLng(initialLatitude, initialLongitude)
@@ -660,9 +661,8 @@ internal fun MapPickerScreen(
             TopBar(
                 title = "Pick Location",
                 onClose = onClose,
-                onConfirm = {
-                    selectedLatLng?.let(onConfirm)
-                }
+                onConfirm = { selectedLatLng?.let(onConfirm) },
+                confirmEnabled = isConnected
             )
 
             if (BuildConfig.MAPS_API_KEY.isBlank()) {
@@ -818,6 +818,47 @@ internal fun MapPickerScreen(
                                 contentPadding = PaddingValues(vertical = 8.dp)
                             ) {
                                 Text("Save location", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    if (!isConnected) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0x99000000))
+                                .clickable(enabled = true, onClick = {}),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = SpendAntWhite,
+                                tonalElevation = 8.dp,
+                                modifier = Modifier
+                                    .padding(horizontal = 32.dp)
+                                    .fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "No internet connection",
+                                        color = SpendAntBlack,
+                                        fontSize = 16.sp,
+                                        fontFamily = SpendAntFontFamily,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        text = "Map functionality has been disabled because there is no internet connection available.",
+                                        color = Color(0xFF777777),
+                                        fontSize = 13.sp,
+                                        fontFamily = SpendAntFontFamily,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
                         }
                     }
@@ -1075,7 +1116,8 @@ private fun InlineLoading(text: String) {
 private fun TopBar(
     title: String,
     onClose: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    confirmEnabled: Boolean = true
 ) {
     Box(
         modifier = Modifier
@@ -1103,12 +1145,13 @@ private fun TopBar(
         )
         IconButton(
             onClick = onConfirm,
+            enabled = confirmEnabled,
             modifier = Modifier.align(Alignment.CenterEnd)
         ) {
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = "Save",
-                tint = SpendAntBlack
+                tint = if (confirmEnabled) SpendAntBlack else Color(0xFF999999)
             )
         }
     }
