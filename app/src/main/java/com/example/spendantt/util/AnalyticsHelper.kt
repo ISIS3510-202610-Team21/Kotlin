@@ -1,23 +1,31 @@
 package com.example.spendantt.util
 
 import android.content.Context
+import com.example.spendantt.BuildConfig
+import com.mixpanel.android.mpmetrics.MixpanelAPI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 object AnalyticsHelper {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    private fun mp(context: Context): MixpanelAPI =
+        MixpanelAPI.getInstance(context, BuildConfig.MIXPANEL_TOKEN, true)
+
     // ── BQ1: crash por módulo ─────────────────────────────────────────────────
     fun logModuleCrash(context: Context, moduleName: String, errorMessage: String) {
         android.util.Log.d("ANALYTICS", "Crash en módulo: $moduleName — $errorMessage")
         scope.launch {
-            AnalyticsApiClient.post("/events/crash", mapOf(
-                "module_name" to moduleName,
-                "error_message" to errorMessage.take(100),
-            ))
+            runCatching {
+                mp(context).track("module_crash", JSONObject().apply {
+                    put("module_name", moduleName)
+                    put("error_message", errorMessage.take(100))
+                })
+            }
         }
     }
 
@@ -25,11 +33,13 @@ object AnalyticsHelper {
     fun logDaysSinceLastExpense(context: Context, userId: Int, days: Int) {
         android.util.Log.d("ANALYTICS", "days_since_last_expense = $days (userId=$userId)")
         scope.launch {
-            AnalyticsApiClient.post("/events/days-since-expense", mapOf(
-                "user_id" to userId,
-                "days" to days,
-                "is_inactive" to (days >= 3),
-            ))
+            runCatching {
+                mp(context).track("days_since_expense", JSONObject().apply {
+                    put("user_id", userId)
+                    put("days", days)
+                    put("is_inactive", days >= 3)
+                })
+            }
         }
     }
 
@@ -38,12 +48,14 @@ object AnalyticsHelper {
         val rate = if (fieldsPopulated > 0) fieldsEdited.toDouble() / fieldsPopulated else 0.0
         android.util.Log.d("ANALYTICS", "ocr_edit_rate = $rate ($fieldsEdited/$fieldsPopulated)")
         scope.launch {
-            AnalyticsApiClient.post("/events/ocr-edit-rate", mapOf(
-                "user_id" to userId,
-                "fields_populated" to fieldsPopulated,
-                "fields_edited" to fieldsEdited,
-                "edit_rate" to rate,
-            ))
+            runCatching {
+                mp(context).track("ocr_edit_rate", JSONObject().apply {
+                    put("user_id", userId)
+                    put("fields_populated", fieldsPopulated)
+                    put("fields_edited", fieldsEdited)
+                    put("edit_rate", rate)
+                })
+            }
         }
     }
 
@@ -56,22 +68,26 @@ object AnalyticsHelper {
             else -> "night"
         }
         scope.launch {
-            AnalyticsApiClient.post("/events/active-hour", mapOf(
-                "user_id" to userId,
-                "hour" to hour,
-                "session" to session,
-            ))
+            runCatching {
+                mp(context).track("active_hour", JSONObject().apply {
+                    put("user_id", userId)
+                    put("hour", hour)
+                    put("session", session)
+                })
+            }
         }
     }
 
     // ── BQ5: gastos pequeños recurrentes ─────────────────────────────────────
     fun logSmallRecurringExpenses(context: Context, userId: Int, count: Int, totalAmount: Double) {
         scope.launch {
-            AnalyticsApiClient.post("/events/small-recurring", mapOf(
-                "user_id" to userId,
-                "count" to count,
-                "total_amount" to totalAmount,
-            ))
+            runCatching {
+                mp(context).track("small_recurring_expenses", JSONObject().apply {
+                    put("user_id", userId)
+                    put("count", count)
+                    put("total_amount", totalAmount)
+                })
+            }
         }
     }
 
@@ -90,13 +106,15 @@ object AnalyticsHelper {
         ).minByOrNull { it.value }?.key ?: "none"
 
         scope.launch {
-            AnalyticsApiClient.post("/events/registration-methods", mapOf(
-                "user_id" to userId,
-                "manual_count" to manualCount,
-                "ocr_count" to ocrCount,
-                "google_pay_count" to googlePayCount,
-                "least_used_method" to leastUsed,
-            ))
+            runCatching {
+                mp(context).track("registration_methods", JSONObject().apply {
+                    put("user_id", userId)
+                    put("manual_count", manualCount)
+                    put("ocr_count", ocrCount)
+                    put("google_pay_count", googlePayCount)
+                    put("least_used_method", leastUsed)
+                })
+            }
         }
     }
 }
