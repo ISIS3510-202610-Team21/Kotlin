@@ -18,6 +18,7 @@ val localProperties = Properties().apply {
 
 val pineconeApiKey = localProperties.getProperty("pinecone.api.key", "")
 val mapsApiKey = localProperties.getProperty("MAPS_API_KEY", "")
+val mixpanelToken = localProperties.getProperty("mixpanel.token", "")
 
 android {
     namespace = "com.example.spendantt"
@@ -31,6 +32,7 @@ android {
         versionName = "1.0"
         buildConfigField("String", "PINECONE_API_KEY", "\"$pineconeApiKey\"")
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        buildConfigField("String", "MIXPANEL_TOKEN", "\"$mixpanelToken\"")
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -99,6 +101,8 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics-ktx")
 
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    implementation("com.mixpanel.android:mixpanel-android:7.5.2")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

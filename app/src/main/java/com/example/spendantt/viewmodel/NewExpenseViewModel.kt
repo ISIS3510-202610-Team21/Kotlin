@@ -29,9 +29,18 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+
+private data class OcrSnapshot(
+    val name: String?,
+    val amount: String?,
+    val date: String?,
+    val time: String?,
+    val locationName: String?,
+)
 
 data class NewExpenseUiState(
     val name: String = "",
@@ -72,6 +81,7 @@ class NewExpenseViewModel(
     private val autoCategorizationUsageTracker = AutoCategorizationUsageTracker(context)
 
     private var firebaseUid: String? = null
+    private var ocrSnapshot: OcrSnapshot? = null
 
     private val cloudinaryCloudName = "dpvrhtjka"
     private val cloudinaryUploadPreset = "SpendAnt"
@@ -240,6 +250,14 @@ class NewExpenseViewModel(
         time: String? = null, locationName: String? = null,
         latitude: Double? = null, longitude: Double? = null
     ) {
+        // Guarda snapshot de lo que OCR pobló para calcular BQ3 al guardar
+        ocrSnapshot = OcrSnapshot(
+            name = name,
+            amount = amount,
+            date = date,
+            time = time,
+            locationName = locationName,
+        )
         _uiState.value = _uiState.value.copy(
             name = name ?: _uiState.value.name,
             amount = amount ?: _uiState.value.amount,
@@ -248,7 +266,7 @@ class NewExpenseViewModel(
             locationName = locationName ?: _uiState.value.locationName,
             latitude = latitude ?: _uiState.value.latitude,
             longitude = longitude ?: _uiState.value.longitude,
-            source = ExpenseSource.OCR
+            source = ExpenseSource.OCR,
         )
     }
 
@@ -308,11 +326,13 @@ class NewExpenseViewModel(
                             autoCategorizationUsageTracker.recordAutoCategorization(userId)
                         }
 
+                        logBQ3OcrEditRate(state)
+                        logPostSaveAnalytics()
                         _uiState.value = _uiState.value.copy(
                             isSaving = false,
                             isSaved = true,
                             showLabelPrompt = false,
-                            pendingExpenseId = null
+                            pendingExpenseId = null,
                         )
                     },
                     onFailure = { e ->
@@ -324,6 +344,74 @@ class NewExpenseViewModel(
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
+    }
+
+    private fun logBQ3OcrEditRate(state: NewExpenseUiState) {
+        val snapshot = ocrSnapshot ?: return
+        if (state.source != ExpenseSource.OCR) return
+
+        val populated = listOf(snapshot.name, snapshot.amount, snapshot.date, snapshot.time, snapshot.locationName)
+            .count { !it.isNullOrEmpty() }
+        if (populated == 0) return
+
+        val edited = buildList {
+            if (!snapshot.name.isNullOrEmpty() && state.name.trim() != snapshot.name) add(1)
+            if (!snapshot.amount.isNullOrEmpty() && state.amount != snapshot.amount) add(1)
+            if (!snapshot.date.isNullOrEmpty() && state.date != snapshot.date) add(1)
+            if (!snapshot.time.isNullOrEmpty() && state.time != snapshot.time) add(1)
+            if (!snapshot.locationName.isNullOrEmpty() && state.locationName != snapshot.locationName) add(1)
+        }.size
+
+        AnalyticsHelper.logOcrEditRate(context, userId, populated, edited)
+        ocrSnapshot = null
+    }
+
+    private suspend fun logPostSaveAnalytics() {
+        try {
+            // BQ2: días desde último gasto
+            val lastDate = db.expenseDao().getLastExpenseDate(userId)
+            if (lastDate != null) {
+                val days = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - lastDate).toInt()
+                AnalyticsHelper.logDaysSinceLastExpense(context, userId, days)
+            }
+
+            // BQ4: hora más activa
+            val times = db.expenseDao().getAllExpenseTimes(userId)
+            if (times.isNotEmpty()) {
+                val hourCounts = mutableMapOf<Int, Int>()
+                times.forEach { t ->
+                    val isPm = t.uppercase().contains("PM")
+                    val parts = t.uppercase().replace("AM", "").replace("PM", "").trim().split(":")
+                    var hour = parts[0].trim().toIntOrNull() ?: return@forEach
+                    if (isPm && hour != 12) hour += 12
+                    if (!isPm && hour == 12) hour = 0
+                    hourCounts[hour] = (hourCounts[hour] ?: 0) + 1
+                }
+                hourCounts.maxByOrNull { it.value }?.key?.let { h ->
+                    AnalyticsHelper.logMostActiveHour(context, userId, h)
+                }
+            }
+
+            // BQ5: gastos pequeños recurrentes
+            val now = System.currentTimeMillis()
+            val threeMonthsAgo = Calendar.getInstance().apply {
+                timeInMillis = now
+                add(Calendar.MONTH, -3)
+            }.timeInMillis
+            val recurring = db.expenseDao().getRecurringExpensesInRange(userId, threeMonthsAgo, now)
+            val small = recurring.filter { it.amount < 50_000.0 }
+            if (small.isNotEmpty()) {
+                AnalyticsHelper.logSmallRecurringExpenses(context, userId, small.size, small.sumOf { it.amount })
+            }
+
+            // BQ6: métodos de registro
+            val manual = db.expenseDao().countManualExpenses(userId)
+            val ocr = db.expenseDao().countOcrExpenses(userId)
+            val googlePay = db.expenseDao().countGooglePayExpenses(userId)
+            if (manual + ocr + googlePay > 0) {
+                AnalyticsHelper.logExpenseRegistrationMethods(context, userId, manual, ocr, googlePay)
+            }
+        } catch (_: Exception) {}
     }
 
     fun consumeSaved() {
