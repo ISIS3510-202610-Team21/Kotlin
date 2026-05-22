@@ -88,6 +88,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.spendantt.BuildConfig
 import com.example.spendantt.R
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.voice.VoiceParseResult
 import com.example.spendantt.ui.components.NoInternetBanner
 import com.example.spendantt.viewmodel.VoiceInputViewModel
@@ -301,6 +302,7 @@ private fun NewExpenseFormContent(
     onVoiceInputClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencyState by CurrencyProvider.uiState.collectAsState()
     val context = LocalContext.current
 
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -409,7 +411,7 @@ private fun NewExpenseFormContent(
                     OutlinedTextField(
                         value = uiState.amount,
                         onValueChange = { viewModel.onAmountChange(it) },
-                        placeholder = { Text("$ 0", color = Color(0xFF6D6D6D)) },
+                        placeholder = { Text("${currencyState.activeCurrency} 0", color = Color(0xFF6D6D6D)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
@@ -1351,6 +1353,25 @@ private fun parseTime(timeText: String): Pair<Int, Int>? {
     }
 }
 
+private fun buildVoiceAmountPreview(
+    result: VoiceParseResult,
+    activeCurrency: String
+): String {
+    val amount = result.amount?.toDoubleOrNull() ?: return "-"
+    val originalCurrency = result.detectedCurrencyCode ?: activeCurrency
+    val originalText = "$originalCurrency ${CurrencyProvider.formatValue(amount)}"
+    if (originalCurrency == activeCurrency) return originalText
+
+    val copAmount = if (originalCurrency == "COP") {
+        amount
+    } else {
+        val rate = CurrencyProvider.rateFor(originalCurrency)
+        if (rate == 0.0) 0.0 else kotlin.math.ceil(amount / rate)
+    }
+    val activeAmount = CurrencyProvider.convertToLocal(copAmount)
+    return "$originalText  (≈ $activeCurrency ${CurrencyProvider.formatValue(activeAmount)})"
+}
+
 private suspend fun searchLocationByName(
     context: android.content.Context,
     query: String
@@ -1385,6 +1406,7 @@ internal fun VoiceInputScreen(
 ) {
     val context = LocalContext.current
     val uiState by voiceViewModel.uiState.collectAsState()
+    val currencyState by CurrencyProvider.uiState.collectAsState()
 
     val micPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -1547,7 +1569,7 @@ internal fun VoiceInputScreen(
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     listOf(
                                         "Product"  to (result.name?.replaceFirstChar { it.uppercase() } ?: "-"),
-                                        "Amount"   to listOfNotNull(result.detectedCurrencyCode, result.amount).joinToString(" ").ifEmpty { "-" },
+                                        "Amount"   to buildVoiceAmountPreview(result, currencyState.activeCurrency),
                                         "Location" to (result.locationName?.replaceFirstChar { it.uppercase() } ?: "-"),
                                         "Date"     to (result.date ?: "-")
                                     ).forEach { (label, value) ->

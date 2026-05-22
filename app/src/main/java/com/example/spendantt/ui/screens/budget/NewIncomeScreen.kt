@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.entity.IncomeType
 import com.example.spendantt.data.local.entity.RecurrenceUnit
 import com.example.spendantt.ui.components.*
@@ -39,6 +40,7 @@ fun NewIncomeScreen(
     modifier: Modifier = Modifier
 ) {
     val formState by viewModel.formState.collectAsState()
+    val currencyState by viewModel.currencyState.collectAsState()
 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
@@ -82,8 +84,8 @@ fun NewIncomeScreen(
             SpendAntTextField(
                 value = formState.amount,
                 onValueChange = viewModel::onAmountChange,
-                placeholder = "32,000",
-                leadingText = "$",
+                placeholder = "${currencyState.activeCurrency} 0",
+                leadingText = currencyState.activeCurrency,
                 errorMessage = formState.amountError,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )

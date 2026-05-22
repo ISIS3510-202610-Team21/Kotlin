@@ -41,6 +41,7 @@ fun BudgetNavigation(
                 avatarPath = null,
                 onIncomeClick = { currentScreen = BudgetScreen.BUDGET_AND_INCOME },
                 onGoalsClick = onGoalsClick,
+                onCurrencyClick = {},
                 onEditClick = { /* TODO: EditProfileScreen */ }
             )
         }

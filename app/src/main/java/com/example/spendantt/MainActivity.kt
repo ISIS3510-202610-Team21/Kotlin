@@ -13,6 +13,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.spendantt.data.local.AppDatabase
+import com.example.spendantt.data.currency.CurrencyProvider
+import com.example.spendantt.data.currency.ExchangeRateSyncManager
 import com.example.spendantt.data.repository.NotificationRepository
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.data.service.IcsImportService
@@ -23,6 +25,8 @@ import com.example.spendantt.util.ConnectivityObserver
 import com.example.spendantt.work.NotificationSyncScheduler
 import com.example.spendantt.work.NotificationTimeSanitizer
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,6 +39,10 @@ class MainActivity : AppCompatActivity() {
         NotificationTimeSanitizer.sanitizeIfNeeded(this, "app_create")
         NotificationSyncScheduler.schedulePeriodic(this)
         ConnectivityObserver.register(this)
+        lifecycleScope.launch {
+            CurrencyProvider.loadFromDb(this@MainActivity)
+            runCatching { ExchangeRateSyncManager.triggerIfNeeded(this@MainActivity) }
+        }
 
         // Handle deep link from Bold expense notification
         intent?.getIntExtra(NotificationRepository.EXTRA_NAVIGATE_TO_EXPENSE_ID, -1)

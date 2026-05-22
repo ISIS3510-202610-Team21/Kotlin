@@ -7,6 +7,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
 import com.example.spendantt.data.local.entity.GoalEntity
@@ -325,7 +326,6 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
         now: Long
     ) {
         val todayKey = startOfTodayMillis(now)
-        val currency = DecimalFormat("#,##0").format(todayExpenses)
         val user = database.userDao().getUserById(userId)
         val userCreatedAt = user?.createdAt ?: now
         Log.d(
@@ -353,7 +353,7 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                 type = "budget_exceeded",
                 dayStart = todayKey,
                 title = "Daily budget reached zero",
-                body = "Today's remaining budget after goals is now COP 0. Today's expenses reached COP $currency."
+                body = "Today's remaining budget after goals is now ${CurrencyProvider.formatFromCOP(0.0)}. Today's expenses reached ${CurrencyProvider.formatFromCOP(todayExpenses)}."
             )
         } else {
             notificationRepository.removeDailyNotification(
@@ -375,13 +375,12 @@ class HomeViewModel(context: Context, private val userId: Int) : ViewModel() {
                 todayExpenses = todayExpenses,
                 activeGoals = activeGoals
             )
-            val shortfallText = DecimalFormat("#,##0").format(shortfall)
             notificationRepository.upsertDailyNotification(
                 userId = userId,
                 type = "goal_adjustment",
                 dayStart = todayKey,
                 title = "Today's goal target was not met",
-                body = "Today's income after expenses is short by COP $shortfallText for your goals. Consider saving more tomorrow or moving a deadline to a later date."
+                body = "Today's income after expenses is short by ${CurrencyProvider.formatFromCOP(shortfall)} for your goals. Consider saving more tomorrow or moving a deadline to a later date."
             )
         } else {
             notificationRepository.removeDailyNotification(

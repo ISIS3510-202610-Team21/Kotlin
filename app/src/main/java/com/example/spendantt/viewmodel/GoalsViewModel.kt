@@ -6,6 +6,8 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.spendantt.data.currency.CurrencyProvider
+import com.example.spendantt.data.currency.CurrencyUiState
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.GoalEntity
 import com.example.spendantt.data.preferences.GoalPreferences
@@ -14,6 +16,7 @@ import com.example.spendantt.data.repository.GoalRepository
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.data.repository.NotificationRepository
 import com.example.spendantt.util.DailyFinanceCalculator
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -30,7 +33,7 @@ data class GoalListItemUiState(
 )
 
 class GoalsViewModel(
-    context: Context,
+    private val context: Context,
     private val userId: Int,
     private val firebaseUid: String? = null
 ) : ViewModel() {
@@ -59,6 +62,7 @@ class GoalsViewModel(
 
     private val _goalLimitError = mutableStateOf<String?>(null)
     val goalLimitError: State<String?> = _goalLimitError
+    val currencyState: StateFlow<CurrencyUiState> = CurrencyProvider.uiState
 
     init {
         observeGoals()
@@ -82,6 +86,8 @@ class GoalsViewModel(
     suspend fun saveGoal(name: String, targetAmount: Double, deadline: Long, dailyAmount: Double): String? {
         _isSavingGoal.value = true
         return try {
+            val activeCurrency = CurrencyProvider.activeCurrency
+            val targetAmountCop = if (activeCurrency == "COP") targetAmount else CurrencyProvider.convertToCOP(targetAmount)
             val createdAt = startOfTodayMillis()
             val incomes = incomeRepository.getIncomesByUser(userId).first()
             val existingGoals = repository.getGoalsByUser(userId).first()
@@ -95,7 +101,7 @@ class GoalsViewModel(
                 return message
             }
 
-            if (targetAmount < MIN_GOAL_TARGET_AMOUNT) {
+            if (targetAmountCop < MIN_GOAL_TARGET_AMOUNT) {
                 val message = "Goal amount must be at least 50."
                 _goalLimitError.value = message
                 return message
@@ -123,7 +129,10 @@ class GoalsViewModel(
                 goal = GoalEntity(
                     userId = userId,
                     name = name,
-                    targetAmount = targetAmount,
+                    targetAmount = targetAmountCop,
+                    originalTargetAmount = if (activeCurrency == "COP") null else targetAmount,
+                    originalCurrency = if (activeCurrency == "COP") null else activeCurrency,
+                    convertedTargetAmountCop = if (activeCurrency == "COP") null else targetAmountCop,
                     currentAmount = 0.0,
                     deadline = deadline,
                     createdAt = createdAt,

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.ui.components.NoInternetBanner
 import com.example.spendantt.ui.components.SpendAntHeader
 import com.example.spendantt.ui.theme.SpendAntGreen
@@ -294,7 +295,7 @@ private fun GoalListCard(
                     color = Color.DarkGray
                 )
                 Text(
-                    text = "Daily save: $${goal.dailyAmount.toInt()}",
+                    text = "Daily save: ${CurrencyProvider.formatFromCOP(goal.dailyAmount)}",
                     fontSize = 12.sp,
                     color = Color.DarkGray
                 )

@@ -23,6 +23,9 @@ data class IncomeEntity(
 
     val name: String,               // Ej: "Parents Support"
     val amount: Double,             // Ej: 400500.0
+    val originalAmount: Double? = null,
+    val originalCurrency: String? = null,
+    val convertedAmountCop: Double? = null,
 
     val type: IncomeType,           // JUST_ONCE o FREQUENTLY
 

@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.spendantt.data.local.AppDatabase
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.repository.IncomeRepository
 import com.example.spendantt.data.repository.UserRepository
 import com.example.spendantt.ui.components.BottomNavBar
@@ -28,6 +29,7 @@ import com.example.spendantt.ui.screens.onboarding.OnboardingScreen2
 import com.example.spendantt.ui.screens.onboarding.OnboardingScreen3
 import com.example.spendantt.ui.screens.onboarding.OnboardingScreen4
 import com.example.spendantt.ui.screens.budget.BudgetNavigation
+import com.example.spendantt.ui.screens.budget.CurrencyConverterScreen
 import com.example.spendantt.ui.screens.budget.EditProfileScreen
 import com.example.spendantt.ui.screens.budget.ProfileScreen
 import com.example.spendantt.ui.screens.expense.ExpenseDetailScreen
@@ -60,6 +62,7 @@ sealed class Screen(val route: String) {
     object EditProfile : Screen("edit_profile")
     object Goals : Screen("goals")
     object Budget : Screen("budget")
+    object CurrencyConverter : Screen("currency_converter")
     object NewExpense : Screen("new_expense")
     object ExpenseDetail : Screen("expense_detail")
     object Notifications : Screen("notifications")
@@ -74,6 +77,7 @@ private val routesWithoutNavBar = listOf(
     Screen.Onboarding3.route,
     Screen.Onboarding4.route,
     Screen.CalendarImportGate.route,
+    Screen.CurrencyConverter.route,
     Screen.NewExpense.route,
     Screen.ExpenseDetail.route,
     Screen.EditProfile.route,
@@ -316,6 +320,7 @@ fun AppNavigation(
                 if (currentUserId == null) return@composable
                 val budgetViewModel = remember(currentUserId) {
                     BudgetViewModel(
+                        context = context,
                         incomeRepository = IncomeRepository(db.incomeDao()),
                         userId = currentUserId,
                         firebaseUid = firebaseUid
@@ -328,7 +333,19 @@ fun AppNavigation(
                     avatarPath = avatarPath,
                     onIncomeClick = { navController.navigate(Screen.Budget.route) },
                     onGoalsClick = { navController.navigate(Screen.Goals.route) },
+                    onCurrencyClick = { navController.navigate(Screen.CurrencyConverter.route) },
                     onEditClick = { navController.navigate(Screen.EditProfile.route) }
+                )
+            }
+
+            composable(Screen.CurrencyConverter.route) {
+                CurrencyConverterScreen(
+                    onClose = { navController.popBackStack() },
+                    onConfirm = { iso, rate ->
+                        coroutineScope.launch {
+                            CurrencyProvider.setActiveCurrency(context, iso, rate)
+                        }
+                    }
                 )
             }
 
@@ -336,6 +353,7 @@ fun AppNavigation(
                 if (currentUserId == null) return@composable
                 val budgetViewModel = remember(currentUserId) {
                     BudgetViewModel(
+                        context = context,
                         incomeRepository = IncomeRepository(db.incomeDao()),
                         userId = currentUserId,
                         firebaseUid = firebaseUid
