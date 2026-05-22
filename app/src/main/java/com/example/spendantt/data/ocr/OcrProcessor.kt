@@ -1,6 +1,9 @@
 package com.example.spendantt.data.ocr
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.util.LruCache
 import com.google.mlkit.vision.common.InputImage
@@ -50,8 +53,12 @@ class OcrProcessor(private val context: Context) {
 
         return try {
             android.util.Log.d(OCR_CACHE_TAG, "Cache miss for $cacheKey")
-            val image = InputImage.fromFilePath(context, uri)
-            val text = recognizeText(image)
+            val mimeType = context.contentResolver.getType(uri)
+            val text = if (mimeType == "application/pdf") {
+                processPdf(uri)
+            } else {
+                recognizeText(loadImageFromUri(uri))
+            }
             android.util.Log.d("OCR_TEXT", text)
             parseReceiptText(text).also { result ->
                 ocrResultCache.put(cacheKey, result)
@@ -60,6 +67,35 @@ class OcrProcessor(private val context: Context) {
             appendOcrErrorLog(uri, e)
             throw e
         }
+    }
+
+    private fun loadImageFromUri(uri: Uri): InputImage {
+        if (uri.scheme == "file") return InputImage.fromFilePath(context, uri)
+        val stream = context.contentResolver.openInputStream(uri)
+            ?: throw IllegalArgumentException("Cannot open URI: $uri")
+        val bitmap = BitmapFactory.decodeStream(stream)
+            ?: throw IllegalArgumentException("Cannot decode image from URI: $uri")
+        return InputImage.fromBitmap(bitmap, 0)
+    }
+
+    private suspend fun processPdf(uri: Uri): String {
+        val fd = context.contentResolver.openFileDescriptor(uri, "r")
+            ?: throw IllegalArgumentException("Cannot open PDF: $uri")
+        val sb = StringBuilder()
+        fd.use {
+            PdfRenderer(it).use { renderer ->
+                for (i in 0 until renderer.pageCount) {
+                    val page = renderer.openPage(i)
+                    val bitmap = Bitmap.createBitmap(page.width * 2, page.height * 2, Bitmap.Config.ARGB_8888)
+                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    page.close()
+                    val pageText = recognizeText(InputImage.fromBitmap(bitmap, 0))
+                    if (pageText.isNotBlank()) sb.appendLine(pageText)
+                    bitmap.recycle()
+                }
+            }
+        }
+        return sb.toString()
     }
 
     private suspend fun recognizeText(image: InputImage): String {
@@ -152,6 +188,11 @@ class OcrProcessor(private val context: Context) {
             "\\b(?:carrera|cra|cr|calle|cl|avenida|av|diagonal|diag|transversal|tv)\\b",
             RegexOption.IGNORE_CASE
         )
+        // Micro-opt #1: Regex pre-compilados para evitar crear objetos nuevos en cada iteración
+        private val LONG_NUMBER_REGEX = Regex("\\d{4,}")
+        private val SEPARATOR_REGEX = Regex("[.,]")
+        private val CLEAN_SEPARATOR_REGEX = Regex("[,.]")
+        private val KEYWORD_REGEX_CACHE = HashMap<String, Regex>()
     }
 
     // ── NORMALIZACIÓN DE TEXTO ─────────────────────────────────────────────────
@@ -169,7 +210,7 @@ class OcrProcessor(private val context: Context) {
         for (line in lines.take(6)) {
             val normalized = line.lowercase()
             if (line.length < 3 || !line.any { it.isLetter() }) continue
-            if (Regex("\\d{4,}").containsMatchIn(line)) continue
+            if (LONG_NUMBER_REGEX.containsMatchIn(line)) continue
             if (NAME_BLOCKED.any { normalized.contains(it) }) continue
             return line.trim()
         }
@@ -208,9 +249,9 @@ class OcrProcessor(private val context: Context) {
         val normalizedLine = normalizeKeywordLine(line)
         val candidates = mutableListOf<AmountCandidate>()
 
-        AMOUNT_REGEX.findAll(line).forEach { match ->
+        for (match in AMOUNT_REGEX.findAll(line)) {
             val rawCandidate = match.value
-            val value = parseAmount(rawCandidate) ?: return@forEach
+            val value = parseAmount(rawCandidate) ?: continue
 
             val normalizedRaw = rawCandidate.lowercase()
             val prefix = normalizedLine.substring(0, match.range.first.coerceAtMost(normalizedLine.length))
@@ -232,7 +273,7 @@ class OcrProcessor(private val context: Context) {
             )
             val isNegative = rawCandidate.contains('-')
             val digitCount = amountDigitCount(rawCandidate)
-            val hasSeparator = rawCandidate.contains(Regex("[.,]"))
+            val hasSeparator = rawCandidate.contains(SEPARATOR_REGEX)
             val hasDollarSign = normalizedRaw.contains('$')
             val hasCurrencyMarker = CURRENCY_REGEX.containsMatchIn(normalizedRaw)
             val looksLikeId = looksLikeIdentifier(rawCandidate, normalizedLine)
@@ -281,7 +322,7 @@ class OcrProcessor(private val context: Context) {
         nearPayment: Boolean, nearSubtotal: Boolean, nearTax: Boolean,
         nearCount: Boolean, nearUnit: Boolean, looksLikeId: Boolean,
         onTotalLine: Boolean, afterTotalLine: Boolean,
-        totalKeywordScore: Int, distanceToTotal: Int?, isNegative: Boolean
+        totalKeywordScore: Int, distanceToTotal: Int, isNegative: Boolean
     ): Int {
         var score = 0
 
@@ -290,7 +331,7 @@ class OcrProcessor(private val context: Context) {
         else if (afterTotalLine) score += 85 + (totalKeywordScore * 3)
 
         // Bono por proximidad al keyword (cuanto más cerca, más bono)
-        if (distanceToTotal != null) {
+        if (distanceToTotal != -1) {
             val proximityBonus = 40 - distanceToTotal.coerceAtMost(40)
             if (proximityBonus > 0) score += proximityBonus
         }
@@ -390,7 +431,7 @@ class OcrProcessor(private val context: Context) {
                 decimalDigits == 1 || decimalDigits == 2 ->
                     cleaned.replace(if (sep == '.') "," else ".", "").replaceFirst(sep.toString(), ".")
                 // 3 dígitos después = separador de miles (ej: 25.000 en COP)
-                else -> cleaned.replace(Regex("[,.]"), "")
+                else -> cleaned.replace(CLEAN_SEPARATOR_REGEX, "")
             }
         }
 
@@ -400,12 +441,15 @@ class OcrProcessor(private val context: Context) {
     private fun amountDigitCount(raw: String): Int = normalizeOcrToken(raw).count { it.isDigit() }
 
     // Formatea el monto como entero con separadores de miles (estilo COP)
-    private fun formatAmount(value: Int): String = "%,d".format(value).replace(',', '.')
+    private fun formatAmount(value: Int): String = value.toString()
 
     // ── KEYWORD HELPERS ───────────────────────────────────────────────────────
     private fun lineContainsKeyword(line: String, keyword: String): Boolean {
-        val escaped = Regex.escape(keyword)
-        return Regex("(?<![a-z0-9])$escaped(?![a-z0-9])", RegexOption.IGNORE_CASE).containsMatchIn(line)
+        val regex = KEYWORD_REGEX_CACHE.getOrPut(keyword) {
+            val escaped = Regex.escape(keyword)
+            Regex("(?<![a-z0-9])$escaped(?![a-z0-9])", RegexOption.IGNORE_CASE)
+        }
+        return regex.containsMatchIn(line)
     }
 
     private fun keywordScoreBefore(prefix: String, keywords: List<String>, window: Int = 28): Int {
@@ -419,16 +463,16 @@ class OcrProcessor(private val context: Context) {
     private fun hasKeywordBefore(prefix: String, keywords: List<String>, window: Int = 28): Boolean =
         keywordScoreBefore(prefix, keywords, window) > 0
 
-    private fun distanceToKeywordBefore(prefix: String, keywords: List<String>, window: Int = 28): Int? {
+    private fun distanceToKeywordBefore(prefix: String, keywords: List<String>, window: Int = 28): Int {
         val context = prefix.takeLast(window)
-        var best: Int? = null
+        var best = -1
         for (keyword in keywords) {
             var start = 0
             while (start < context.length) {
                 val idx = context.indexOf(keyword, start)
                 if (idx == -1) break
                 val distance = context.length - (idx + keyword.length)
-                if (best == null || distance < best) best = distance
+                if (best == -1 || distance < best) best = distance
                 start = idx + keyword.length
             }
         }

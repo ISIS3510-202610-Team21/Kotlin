@@ -29,9 +29,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -80,7 +88,9 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.spendantt.BuildConfig
 import com.example.spendantt.R
+import com.example.spendantt.data.voice.VoiceParseResult
 import com.example.spendantt.ui.components.NoInternetBanner
+import com.example.spendantt.viewmodel.VoiceInputViewModel
 import com.example.spendantt.ui.screens.labels.LabelsScreen
 import com.example.spendantt.ui.theme.SpendAntBlack
 import com.example.spendantt.ui.theme.SpendAntFontFamily
@@ -109,7 +119,8 @@ private enum class ExpenseScreenState {
     FORM,
     LABELS,
     LABEL_PROMPT,
-    MAP_PICKER
+    MAP_PICKER,
+    VOICE_INPUT
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,6 +134,12 @@ fun NewExpenseScreen(
     val isConnected by ConnectivityObserver.isConnected.collectAsState()
     var currentScreen by remember { mutableStateOf(ExpenseScreenState.FORM) }
     var showOfflineMapPopup by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val voiceViewModel = remember { VoiceInputViewModel(context.applicationContext) }
+
+    DisposableEffect(voiceViewModel) {
+        onDispose { voiceViewModel.cancel() }
+    }
 
     LaunchedEffect(uiState.showLabelPrompt) {
         if (uiState.showLabelPrompt) {
@@ -165,7 +182,8 @@ fun NewExpenseScreen(
                     } else {
                         showOfflineMapPopup = true
                     }
-                }
+                },
+                onVoiceInputClick = { currentScreen = ExpenseScreenState.VOICE_INPUT }
             )
         }
 
@@ -193,6 +211,21 @@ fun NewExpenseScreen(
                 onClose = { currentScreen = ExpenseScreenState.FORM },
                 onConfirm = { latLng ->
                     viewModel.onLocationSelected(latLng.latitude, latLng.longitude)
+                    currentScreen = ExpenseScreenState.FORM
+                }
+            )
+        }
+
+        ExpenseScreenState.VOICE_INPUT -> {
+            VoiceInputScreen(
+                voiceViewModel = voiceViewModel,
+                onClose = {
+                    voiceViewModel.stopListening()
+                    currentScreen = ExpenseScreenState.FORM
+                },
+                onConfirm = { result ->
+                    viewModel.autoFillFromVoice(result)
+                    voiceViewModel.clearDraft()
                     currentScreen = ExpenseScreenState.FORM
                 }
             )
@@ -264,7 +297,8 @@ private fun NewExpenseFormContent(
     onClose: () -> Unit,
     onSaved: () -> Unit,
     onLabelClick: () -> Unit,
-    onLocationClick: () -> Unit
+    onLocationClick: () -> Unit,
+    onVoiceInputClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -441,22 +475,42 @@ private fun NewExpenseFormContent(
 
                 Spacer(modifier = Modifier.height(40.dp))
 
-                Button(
-                    onClick = { showReceiptOptions = true },
-                    shape = RoundedCornerShape(50.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SpendAntBlack,
-                        contentColor = SpendAntWhite
-                    ),
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                Row(
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_scan_receipt),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Scan Receipt", fontWeight = FontWeight.SemiBold)
+                    Button(
+                        onClick = { showReceiptOptions = true },
+                        shape = RoundedCornerShape(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SpendAntBlack,
+                            contentColor = SpendAntWhite
+                        )
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_scan_receipt),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan Receipt", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Button(
+                        onClick = onVoiceInputClick,
+                        shape = RoundedCornerShape(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SpendAntBlack,
+                            contentColor = SpendAntWhite
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Voice input",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
                 if (uiState.receiptImageUri != null) {
@@ -1320,6 +1374,267 @@ private suspend fun searchLocationByName(
         }
     } catch (_: Exception) {
         null
+    }
+}
+
+@Composable
+internal fun VoiceInputScreen(
+    voiceViewModel: VoiceInputViewModel,
+    onClose: () -> Unit,
+    onConfirm: (VoiceParseResult) -> Unit
+) {
+    val context = LocalContext.current
+    val uiState by voiceViewModel.uiState.collectAsState()
+
+    val micPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) voiceViewModel.startListening()
+        else voiceViewModel.stopListening()
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue  = 0.55f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(650),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+    val micAlpha = if (uiState.isListening) pulseAlpha else 1f
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SpendAntWhite)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopBar(
+                title          = "Voice Register",
+                onClose        = onClose,
+                onConfirm      = { onConfirm(uiState.parsedResult) },
+                confirmEnabled = uiState.hasParsedResult && !uiState.isParsing
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // ── Format hint card ──────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFE2F8E4))
+                        .padding(16.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text       = "Say your expense in this format:",
+                            color      = SpendAntBlack,
+                            fontFamily = SpendAntFontFamily,
+                            fontSize   = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign  = TextAlign.Center,
+                            modifier   = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text       = "\"I paid [amount] for [product] (on [day]) (at [time]) (at [location])\"",
+                            color      = SpendAntBlack,
+                            fontFamily = SpendAntFontFamily,
+                            fontSize   = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontStyle  = FontStyle.Italic,
+                            textAlign  = TextAlign.Center,
+                            modifier   = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text       = "For example:",
+                            color      = SpendAntBlack,
+                            fontFamily = SpendAntFontFamily,
+                            fontSize   = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign  = TextAlign.Center,
+                            modifier   = Modifier.fillMaxWidth()
+                        )
+                        listOf(
+                            "\"I paid 5 dollars for coffee\"",
+                            "\"I paid 15 euros for lunch yesterday at McDonald's\"",
+                            "\"I paid 25,000 pesos for a taxi on Tuesday at 10 PM at the airport\""
+                        ).forEach { example ->
+                            Text(
+                                text       = example,
+                                color      = SpendAntBlack,
+                                fontFamily = SpendAntFontFamily,
+                                fontSize   = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontStyle  = FontStyle.Italic,
+                                textAlign  = TextAlign.Center,
+                                modifier   = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0xFFE0E0E0))
+                )
+
+                // ── Transcript section ────────────────────────────────────
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text       = "What I heard:",
+                        color      = SpendAntBlack,
+                        fontFamily = SpendAntFontFamily,
+                        fontSize   = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign  = TextAlign.Center
+                    )
+
+                    if (uiState.isParsing) {
+                        CircularProgressIndicator(
+                            modifier    = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color       = SpendAntGreen
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFEEEEEE))
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = when {
+                                    uiState.transcript.isEmpty() -> "\"[Tap the mic below to speak]\""
+                                    else -> "\"${uiState.transcript}\""
+                                },
+                                color      = SpendAntBlack,
+                                fontFamily = SpendAntFontFamily,
+                                fontStyle  = FontStyle.Italic,
+                                fontSize   = 15.sp,
+                                textAlign  = TextAlign.Center,
+                                modifier   = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        if (uiState.hasParsedResult) {
+                            val result = uiState.parsedResult
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFE2F8E4))
+                                    .padding(16.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf(
+                                        "Product"  to (result.name?.replaceFirstChar { it.uppercase() } ?: "-"),
+                                        "Amount"   to listOfNotNull(result.detectedCurrencyCode, result.amount).joinToString(" ").ifEmpty { "-" },
+                                        "Location" to (result.locationName?.replaceFirstChar { it.uppercase() } ?: "-"),
+                                        "Date"     to (result.date ?: "-")
+                                    ).forEach { (label, value) ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Text(
+                                                text       = label,
+                                                color      = SpendAntBlack,
+                                                fontFamily = SpendAntFontFamily,
+                                                fontSize   = 14.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                modifier   = Modifier.width(72.dp)
+                                            )
+                                            Text(
+                                                text       = value,
+                                                color      = SpendAntBlack,
+                                                fontFamily = SpendAntFontFamily,
+                                                fontSize   = 14.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text       = "Looks correct? Save now",
+                                color      = SpendAntGreen,
+                                fontFamily = SpendAntFontFamily,
+                                fontSize   = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign  = TextAlign.Center,
+                                modifier   = Modifier.clickable { onConfirm(uiState.parsedResult) }
+                            )
+                        }
+                    }
+
+                    if (uiState.error != null) {
+                        Text(
+                            text       = uiState.error!!,
+                            color      = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                            fontFamily = SpendAntFontFamily,
+                            fontSize   = 13.sp,
+                            textAlign  = TextAlign.Center
+                        )
+                    }
+                }
+
+                // ── Mic button ────────────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(SpendAntGreen.copy(alpha = micAlpha))
+                        .clickable {
+                            if (uiState.isListening) {
+                                voiceViewModel.stopListening()
+                            } else {
+                                val granted = ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.RECORD_AUDIO
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (granted) voiceViewModel.startListening()
+                                else micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = if (uiState.isListening) "Stop listening" else "Start listening",
+                        tint     = SpendAntBlack,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+
+                if (uiState.isListening) {
+                    Text(
+                        text       = "Listening...",
+                        color      = SpendAntGreen,
+                        fontFamily = SpendAntFontFamily,
+                        fontSize   = 13.sp
+                    )
+                }
+            }
+        }
     }
 }
 
