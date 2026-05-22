@@ -1443,7 +1443,7 @@ internal fun VoiceInputScreen(
                             color      = SpendAntBlack,
                             fontFamily = SpendAntFontFamily,
                             fontSize   = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             textAlign  = TextAlign.Center,
                             modifier   = Modifier.fillMaxWidth()
                         )
@@ -1463,6 +1463,7 @@ internal fun VoiceInputScreen(
                             color      = SpendAntBlack,
                             fontFamily = SpendAntFontFamily,
                             fontSize   = 13.sp,
+                            fontWeight = FontWeight.Bold,
                             textAlign  = TextAlign.Center,
                             modifier   = Modifier.fillMaxWidth()
                         )
@@ -1502,6 +1503,7 @@ internal fun VoiceInputScreen(
                         color      = SpendAntBlack,
                         fontFamily = SpendAntFontFamily,
                         fontSize   = 15.sp,
+                        fontWeight = FontWeight.Bold,
                         textAlign  = TextAlign.Center
                     )
 
@@ -1512,29 +1514,77 @@ internal fun VoiceInputScreen(
                             color       = SpendAntGreen
                         )
                     } else {
-                        Text(
-                            text = when {
-                                uiState.transcript.isEmpty() -> "\"[Tap the mic below to speak]\""
-                                else -> "\"${uiState.transcript}\""
-                            },
-                            color      = SpendAntBlack,
-                            fontFamily = SpendAntFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontStyle  = FontStyle.Italic,
-                            fontSize   = 15.sp,
-                            textAlign  = TextAlign.Center
-                        )
-                    }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFEEEEEE))
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = when {
+                                    uiState.transcript.isEmpty() -> "\"[Tap the mic below to speak]\""
+                                    else -> "\"${uiState.transcript}\""
+                                },
+                                color      = SpendAntBlack,
+                                fontFamily = SpendAntFontFamily,
+                                fontStyle  = FontStyle.Italic,
+                                fontSize   = 15.sp,
+                                textAlign  = TextAlign.Center,
+                                modifier   = Modifier.fillMaxWidth()
+                            )
+                        }
 
-                    if (uiState.hasParsedResult && !uiState.isParsing) {
-                        Text(
-                            text      = "Looks correct? Save now",
-                            color     = SpendAntBlack,
-                            fontFamily = SpendAntFontFamily,
-                            fontSize  = 14.sp,
-                            textAlign = TextAlign.Center,
-                            modifier  = Modifier.clickable { onConfirm(uiState.parsedResult) }
-                        )
+                        if (uiState.hasParsedResult) {
+                            val result = uiState.parsedResult
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFE2F8E4))
+                                    .padding(16.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf(
+                                        "Product"  to (result.name?.replaceFirstChar { it.uppercase() } ?: "-"),
+                                        "Amount"   to listOfNotNull(result.detectedCurrencyCode, result.amount).joinToString(" ").ifEmpty { "-" },
+                                        "Location" to (result.locationName?.replaceFirstChar { it.uppercase() } ?: "-"),
+                                        "Date"     to (result.date ?: "-")
+                                    ).forEach { (label, value) ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Text(
+                                                text       = label,
+                                                color      = SpendAntBlack,
+                                                fontFamily = SpendAntFontFamily,
+                                                fontSize   = 14.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                modifier   = Modifier.width(72.dp)
+                                            )
+                                            Text(
+                                                text       = value,
+                                                color      = SpendAntBlack,
+                                                fontFamily = SpendAntFontFamily,
+                                                fontSize   = 14.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text       = "Looks correct? Save now",
+                                color      = SpendAntGreen,
+                                fontFamily = SpendAntFontFamily,
+                                fontSize   = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign  = TextAlign.Center,
+                                modifier   = Modifier.clickable { onConfirm(uiState.parsedResult) }
+                            )
+                        }
                     }
 
                     if (uiState.error != null) {

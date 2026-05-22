@@ -12,7 +12,8 @@ import com.example.spendantt.R
 
 private val NunitoFamily = FontFamily(
     Font(R.font.nunito_regular, FontWeight.Normal),
-    Font(R.font.nunito_italic, FontWeight.Normal, FontStyle.Italic)
+    Font(R.font.nunito_italic, FontWeight.Normal, FontStyle.Italic),
+    Font(R.font.nunito_bold,    FontWeight.Bold)
 )
 
 val SpendAntFontFamily = NunitoFamily
