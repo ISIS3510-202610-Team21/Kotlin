@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseSource
@@ -17,6 +18,7 @@ import com.example.spendantt.data.service.AutoCategorizationService
 import com.example.spendantt.data.service.AutoCategorizationUsageTracker
 import com.example.spendantt.util.AnalyticsHelper
 import com.example.spendantt.util.ConnectivityObserver
+import com.example.spendantt.util.CurrencyAmountParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -271,11 +273,25 @@ class NewExpenseViewModel(
     }
 
     fun autoFillFromVoice(result: com.example.spendantt.data.voice.VoiceParseResult) {
-        // detectedCurrencyCode is preserved for the future exchange-rate feature;
-        // for now we populate fields with the raw parsed values (COP assumed).
+        val inputAmount = result.amount
+            ?.toDoubleOrNull()
+            ?.let { parsed ->
+                val sourceCurrency = result.detectedCurrencyCode ?: CurrencyProvider.activeCurrency
+                if (sourceCurrency == "COP") {
+                    CurrencyProvider.formatAmountForInput(CurrencyProvider.convertToLocal(parsed))
+                } else {
+                    val copAmount = if (sourceCurrency == CurrencyProvider.activeCurrency) {
+                        CurrencyProvider.convertToCOP(parsed)
+                    } else {
+                        val sourceRate = CurrencyProvider.rateFor(sourceCurrency)
+                        if (sourceRate == 0.0) 0.0 else kotlin.math.ceil(parsed / sourceRate)
+                    }
+                    CurrencyProvider.formatAmountForInput(CurrencyProvider.convertToLocal(copAmount))
+                }
+            }
         autoFillFromReceipt(
             name         = result.name,
-            amount       = result.amount,
+            amount       = inputAmount,
             date         = result.date,
             time         = result.time,
             locationName = result.locationName
@@ -286,12 +302,15 @@ class NewExpenseViewModel(
     fun saveExpense() {
         val state = _uiState.value
         val name = state.name.trim()
-        val amount = state.amount.replace("$", "").replace(",", "").trim().toDoubleOrNull()
+        val parsedLocalAmount = CurrencyAmountParser.parse(state.amount)
 
-        if (name.isEmpty() || amount == null) {
+        if (name.isEmpty() || parsedLocalAmount == null) {
             _uiState.value = state.copy(error = "Name and amount are required")
             return
         }
+
+        val activeCurrency = CurrencyProvider.activeCurrency
+        val amount = if (activeCurrency == "COP") parsedLocalAmount else CurrencyProvider.convertToCOP(parsedLocalAmount)
 
         viewModelScope.launch {
             _uiState.value = state.copy(isSaving = true, error = null)
@@ -303,6 +322,9 @@ class NewExpenseViewModel(
                     userId = userId,
                     name = name,
                     amount = amount,
+                    originalAmount = if (activeCurrency == "COP") null else parsedLocalAmount,
+                    originalCurrency = if (activeCurrency == "COP") null else activeCurrency,
+                    convertedAmountCop = if (activeCurrency == "COP") null else amount,
                     isRecurring = state.regretExpense,
                     date = parsedDate,
                     time = state.time,

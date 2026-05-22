@@ -1,6 +1,7 @@
 package com.example.spendantt.data.service
 
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
+import com.example.spendantt.data.currency.CurrencyProvider
 import kotlin.random.Random
 
 data class WeeklyInsight(
@@ -47,7 +48,7 @@ class WeeklyInsightService(
         return WeeklyInsight(
             notificationId = "weekly_insight_$saturdayStart",
             title = "Weekly spending insight",
-            body = "This week you spent \$${formatMoney(total)} on small purchases. These can add up quickly."
+            body = "This week you spent ${CurrencyProvider.formatFromCOP(total)} on small purchases. These can add up quickly."
         )
     }
 
@@ -126,10 +127,6 @@ class WeeklyInsightService(
             else -> rawHour
         }
         return "$hour12$suffix"
-    }
-
-    private fun formatMoney(amount: Double): String {
-        return java.text.DecimalFormat("#,##0").format(amount)
     }
 
     private companion object {

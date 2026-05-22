@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
+import com.example.spendantt.data.currency.CurrencyProvider
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -61,6 +63,7 @@ fun SetGoalFlowScreen(
     onSaveGoal: suspend (name: String, targetAmount: Double, deadline: Long, dailyAmount: Double) -> String? = { _, _, _, _ -> null },
     onExit: () -> Unit = {}
 ) {
+    val currencyState by CurrencyProvider.uiState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     var currentStep by remember { mutableStateOf(0) }
     var amount by remember { mutableStateOf("") }
@@ -72,8 +75,8 @@ fun SetGoalFlowScreen(
     var saveError by remember { mutableStateOf<String?>(null) }
 
     val amountValue = amount.toLongOrNull() ?: 0L
-    val formattedAmount = "\$${formatNumber(amountValue)}"
-    val safeAmount = if (amountValue > 0L) formattedAmount else "$0"
+    val formattedAmount = "${currencyState.activeCurrency} ${formatNumber(amountValue)}"
+    val safeAmount = if (amountValue > 0L) formattedAmount else "${currencyState.activeCurrency} 0"
     val safePurpose = purpose.ifBlank { "your goal" }
     val safeDate = formatDate(targetDateMillis).ifBlank { "your target date" }
     val daysRemaining = calculateDaysUntil(targetDateMillis)
@@ -112,6 +115,7 @@ fun SetGoalFlowScreen(
         currentStep == 1 -> {
             SetGoalAmountScreen(
                 amount = amount,
+                activeCurrency = currencyState.activeCurrency,
                 errorMessage = amountError,
                 onAmountChange = {
                     amount = it
@@ -152,7 +156,7 @@ fun SetGoalFlowScreen(
         else -> {
             SetGoalPlanScreen(
                 planText = planText,
-                dailyAmountText = "Save $${formatNumber(dailyAmount)} per day",
+                dailyAmountText = "Save ${currencyState.activeCurrency} ${formatNumber(dailyAmount)} per day",
                 errorMessage = saveError,
                 onBackClick = { currentStep = 2 },
                 onAlrightClick = {
@@ -186,6 +190,7 @@ fun SetGoalFlowScreen(
 @Composable
 fun SetGoalAmountScreen(
     amount: String,
+    activeCurrency: String,
     errorMessage: String?,
     onAmountChange: (String) -> Unit,
     onBackClick: () -> Unit,
@@ -195,7 +200,7 @@ fun SetGoalAmountScreen(
         question = "How much money do you want to save?",
         inputValue = amount,
         errorMessage = errorMessage,
-        inputPlaceholder = "30200000",
+        inputPlaceholder = "$activeCurrency 0",
         antDrawableRes = R.drawable.ant_goal_happy,
         keyboardType = KeyboardType.Number,
         onInputChange = { onAmountChange(it.filter(Char::isDigit)) },

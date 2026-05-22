@@ -27,6 +27,9 @@ data class GoalEntity(
 
     val name: String,               // Ej: "A new Car", "FEP 2026"
     val targetAmount: Double,       // Ej: 30200000.0 (cuánto quiere ahorrar)
+    val originalTargetAmount: Double? = null,
+    val originalCurrency: String? = null,
+    val convertedTargetAmountCop: Double? = null,
     val currentAmount: Double = 0.0,// Cuánto lleva ahorrado (se actualiza con el tiempo)
 
     val deadline: Long,             // Timestamp de la fecha límite

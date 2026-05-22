@@ -7,12 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.spendantt.data.local.dao.ExpenseDao
+import com.example.spendantt.data.local.dao.ExchangeRateDao
 import com.example.spendantt.data.local.dao.GoalDao
 import com.example.spendantt.data.local.dao.IncomeDao
 import com.example.spendantt.data.local.dao.LabelDao
 import com.example.spendantt.data.local.dao.UserDao
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseLabelCrossRef
+import com.example.spendantt.data.local.entity.ExchangeRateEntity
 import com.example.spendantt.data.local.entity.GoalEntity
 import com.example.spendantt.data.local.entity.IncomeEntity
 import com.example.spendantt.data.local.entity.LabelEntity
@@ -34,9 +36,10 @@ import com.example.spendantt.data.local.entity.UserEntity
         LabelEntity::class,
         ExpenseLabelCrossRef::class,
         IncomeEntity::class,
-        GoalEntity::class
+        GoalEntity::class,
+        ExchangeRateEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 // LOCAL STORAGE | Dilan | 10pts | BD Relacional Room: userDao() — UserEntity persistida en SQLite; usada en LoginViewModel y RegisterViewModel para autenticación local
@@ -48,6 +51,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun labelDao(): LabelDao
     abstract fun incomeDao(): IncomeDao
     abstract fun goalDao(): GoalDao
+    abstract fun exchangeRateDao(): ExchangeRateDao
 
     companion object {
         private const val DATABASE_NAME = "spendant_db"
@@ -62,7 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance
@@ -80,6 +84,23 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE labels ADD COLUMN category TEXT")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS exchange_rates (currency TEXT NOT NULL PRIMARY KEY, rate REAL NOT NULL, fetchedAt INTEGER NOT NULL)"
+                )
+                database.execSQL("ALTER TABLE expenses ADD COLUMN originalAmount REAL")
+                database.execSQL("ALTER TABLE expenses ADD COLUMN originalCurrency TEXT")
+                database.execSQL("ALTER TABLE expenses ADD COLUMN convertedAmountCop REAL")
+                database.execSQL("ALTER TABLE incomes ADD COLUMN originalAmount REAL")
+                database.execSQL("ALTER TABLE incomes ADD COLUMN originalCurrency TEXT")
+                database.execSQL("ALTER TABLE incomes ADD COLUMN convertedAmountCop REAL")
+                database.execSQL("ALTER TABLE goals ADD COLUMN originalTargetAmount REAL")
+                database.execSQL("ALTER TABLE goals ADD COLUMN originalCurrency TEXT")
+                database.execSQL("ALTER TABLE goals ADD COLUMN convertedTargetAmountCop REAL")
             }
         }
     }

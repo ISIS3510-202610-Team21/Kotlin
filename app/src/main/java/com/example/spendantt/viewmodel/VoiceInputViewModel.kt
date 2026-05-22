@@ -8,6 +8,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import java.util.Locale
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.VoiceDraftDataStore
 import com.example.spendantt.data.voice.VoiceExpenseParser
 import com.example.spendantt.data.voice.VoiceParseResult
@@ -167,8 +168,9 @@ class VoiceInputViewModel(private val appContext: Context) {
 
     private fun handleTranscript(text: String) {
         _uiState.value = _uiState.value.copy(transcript = text, isParsing = true)
+        val defaultCurrency = CurrencyProvider.activeCurrency
         scope.launch(Dispatchers.IO) {
-            val result = parser.parse(text)
+            val result = parser.parse(text, defaultCurrency = defaultCurrency)
             VoiceDraftDataStore.saveDraft(appContext, text, result)
             _uiState.value = _uiState.value.copy(
                 isParsing       = false,

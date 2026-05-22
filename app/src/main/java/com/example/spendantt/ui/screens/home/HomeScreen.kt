@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
 import com.example.spendantt.data.local.entity.LabelEntity
@@ -240,20 +241,11 @@ private fun HomeScreenContent(
                     )
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            text = "$${DecimalFormat("#,##0").format(dailyBudget)}",
+                            text = CurrencyProvider.formatFromCOP(dailyBudget),
                             fontSize = 48.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = SpendAntFontFamily,
                             color = SpendAntGreenv2
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "COP",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = SpendAntFontFamily,
-                            color = Color.Black,
-                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                 }
@@ -275,20 +267,11 @@ private fun HomeScreenContent(
                     )
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            text = "$${DecimalFormat("#,##0").format(monthlyExpenses)}",
+                            text = CurrencyProvider.formatFromCOP(monthlyExpenses),
                             fontSize = 48.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = SpendAntFontFamily,
                             color = Color.Red
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "COP",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = SpendAntFontFamily,
-                            color = Color.Red,
-                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                 }
@@ -491,7 +474,7 @@ private fun ExpenseCard(
             }
 
             Text(
-                text = "COP ${DecimalFormat("#,##0").format(expense.expense.amount)}",
+                text = CurrencyProvider.formatFromCOP(expense.expense.amount),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = SpendAntFontFamily,

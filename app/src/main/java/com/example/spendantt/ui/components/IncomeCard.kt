@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.entity.IncomeEntity
 import com.example.spendantt.data.local.entity.IncomeType
 import com.example.spendantt.ui.theme.*
@@ -101,8 +102,5 @@ private fun formatFrequency(income: IncomeEntity): String {
 }
 
 private fun formatAmount(amount: Double): String {
-    val formatter = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
-        maximumFractionDigits = 0
-    }
-    return "COP ${formatter.format(amount)}"
+    return CurrencyProvider.formatFromCOP(amount)
 }

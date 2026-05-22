@@ -5,6 +5,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseSource
@@ -82,7 +83,7 @@ class NotificationsViewModel(
                 notificationId = "google_pay_imported_$notificationId",
                 type = "google_pay_imported",
                 title = "Payment detected",
-                body = "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added as an expense."
+                body = "${parsed.merchantName} for ${CurrencyProvider.formatFromCOP(parsed.amount)} was added as an expense."
             )
             refresh()
         }
@@ -130,9 +131,9 @@ class NotificationsViewModel(
 
                     // Notificación según si se categorizó o no
                     val notificationBody = if (categorized) {
-                        "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added and categorized automatically."
+                        "${parsed.merchantName} for ${CurrencyProvider.formatFromCOP(parsed.amount)} was added and categorized automatically."
                     } else {
-                        "${parsed.merchantName} for COP ${parsed.amount.toInt()} was added. Please categorize it manually."
+                        "${parsed.merchantName} for ${CurrencyProvider.formatFromCOP(parsed.amount)} was added. Please categorize it manually."
                     }
 
                     repository.upsertNotification(

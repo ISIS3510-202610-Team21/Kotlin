@@ -21,6 +21,9 @@ data class ExpenseEntity(
 
     val name: String,
     val amount: Double,
+    val originalAmount: Double? = null,
+    val originalCurrency: String? = null,
+    val convertedAmountCop: Double? = null,
 
     val date: Long,
     val time: String,

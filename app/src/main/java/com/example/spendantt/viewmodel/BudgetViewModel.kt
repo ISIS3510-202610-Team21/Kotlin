@@ -3,16 +3,20 @@ package com.example.spendantt.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.spendantt.data.currency.CurrencyProvider
+import com.example.spendantt.data.currency.CurrencyUiState
 import com.example.spendantt.data.local.AppDatabase
 import com.example.spendantt.data.local.UserDataExporter
 import com.example.spendantt.data.local.entity.IncomeEntity
 import com.example.spendantt.data.local.entity.IncomeType
 import com.example.spendantt.data.local.entity.RecurrenceUnit
 import com.example.spendantt.data.repository.IncomeRepository
+import com.example.spendantt.util.CurrencyAmountParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class BudgetUiState(
@@ -36,6 +40,7 @@ data class NewIncomeFormState(
 )
 
 class BudgetViewModel(
+    private val context: Context,
     private val incomeRepository: IncomeRepository,
     private val userId: Int,
     private val firebaseUid: String? = null
@@ -49,6 +54,8 @@ class BudgetViewModel(
 
     private val _exportResult = MutableStateFlow<String?>(null)
     val exportResult: StateFlow<String?> = _exportResult.asStateFlow()
+
+    val currencyState: StateFlow<CurrencyUiState> = CurrencyProvider.uiState
 
     init {
         loadIncomes()
@@ -83,7 +90,7 @@ class BudgetViewModel(
     }
 
     fun onAmountChange(value: String) {
-        val numericValue = value.filter(Char::isDigit)
+        val numericValue = value.filter { it.isDigit() || it == '.' || it == ',' }
         _formState.value = _formState.value.copy(amount = numericValue, amountError = null)
     }
 
@@ -115,7 +122,7 @@ class BudgetViewModel(
             _formState.value = _formState.value.copy(nameError = "El nombre es requerido")
             hasError = true
         }
-        val parsedAmount = form.amount.replace(",", "").toDoubleOrNull()
+        val parsedAmount = CurrencyAmountParser.parse(form.amount)
         if (parsedAmount == null || parsedAmount <= 0) {
             _formState.value = _formState.value.copy(amountError = "Ingresa un monto valido")
             hasError = true
@@ -124,12 +131,18 @@ class BudgetViewModel(
 
         _formState.value = _formState.value.copy(isSubmitting = true)
 
+        val activeCurrency = CurrencyProvider.activeCurrency
+        val amountInCop = if (activeCurrency == "COP") parsedAmount!! else CurrencyProvider.convertToCOP(parsedAmount!!)
+
         viewModelScope.launch {
             try {
                 val income = IncomeEntity(
                     userId = userId,
                     name = form.name.trim(),
-                    amount = parsedAmount!!,
+                    amount = amountInCop,
+                    originalAmount = if (activeCurrency == "COP") null else parsedAmount,
+                    originalCurrency = if (activeCurrency == "COP") null else activeCurrency,
+                    convertedAmountCop = if (activeCurrency == "COP") null else amountInCop,
                     type = form.incomeType,
                     recurrenceInterval = if (form.incomeType == IncomeType.FREQUENTLY)
                         form.recurrenceInterval.toIntOrNull() ?: 1 else null,
