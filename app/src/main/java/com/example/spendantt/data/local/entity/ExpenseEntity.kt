@@ -50,7 +50,8 @@ enum class ExpenseSource {
     MANUAL,
     OCR,
     GOOGLE_PAY,
-    BOLD   // Transacciones Bold (datáfono)
+    BOLD,   // Transacciones Bold (datáfono)
+    VOICE   // Dictado en lenguaje natural
 }
 
 enum class RecurrenceUnit {

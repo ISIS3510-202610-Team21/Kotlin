@@ -270,6 +270,19 @@ class NewExpenseViewModel(
         )
     }
 
+    fun autoFillFromVoice(result: com.example.spendantt.data.voice.VoiceParseResult) {
+        // detectedCurrencyCode is preserved for the future exchange-rate feature;
+        // for now we populate fields with the raw parsed values (COP assumed).
+        autoFillFromReceipt(
+            name         = result.name,
+            amount       = result.amount,
+            date         = result.date,
+            time         = result.time,
+            locationName = result.locationName
+        )
+        _uiState.value = _uiState.value.copy(source = ExpenseSource.VOICE)
+    }
+
     fun saveExpense() {
         val state = _uiState.value
         val name = state.name.trim()
@@ -478,4 +491,5 @@ class NewExpenseViewModel(
             null
         }
     }
+
 }
