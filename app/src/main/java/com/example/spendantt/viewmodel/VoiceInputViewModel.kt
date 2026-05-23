@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 //   error 4/net  → show message, let user retry manually
 
 private const val TAG = "VoiceInputVM"
+private const val ERROR_SERVER_DISCONNECTED     = 11
 private const val ERROR_LANGUAGE_NOT_SUPPORTED  = 12
 private const val ERROR_LANGUAGE_UNAVAILABLE    = 13
 
@@ -40,7 +41,8 @@ data class VoiceInputUiState(
     val parsedResult: VoiceParseResult = VoiceParseResult(),
     val isParsing: Boolean            = false,
     val hasParsedResult: Boolean      = false,
-    val error: String?                = null
+    val error: String?                = null,
+    val rmsDb: Float                  = 0f
 )
 
 class VoiceInputViewModel(private val appContext: Context) {
@@ -121,13 +123,15 @@ class VoiceInputViewModel(private val appContext: Context) {
             _uiState.value = _uiState.value.copy(isListening = true, error = null)
         }
         override fun onBeginningOfSpeech() { Log.d(TAG, "onBeginningOfSpeech") }
-        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onRmsChanged(rmsdB: Float) {
+            _uiState.value = _uiState.value.copy(rmsDb = rmsdB.coerceIn(-2f, 10f))
+        }
         override fun onBufferReceived(buf: ByteArray?) {}
         override fun onPartialResults(p: Bundle?) {}
         override fun onEvent(type: Int, p: Bundle?) {}
         override fun onEndOfSpeech() {
             Log.d(TAG, "onEndOfSpeech")
-            _uiState.value = _uiState.value.copy(isListening = false)
+            _uiState.value = _uiState.value.copy(isListening = false, rmsDb = 0f)
         }
 
         override fun onResults(results: Bundle) {
@@ -145,6 +149,15 @@ class VoiceInputViewModel(private val appContext: Context) {
                     Log.d(TAG, "Offline language unavailable (error=$error), retrying online")
                     _uiState.value = _uiState.value.copy(isListening = false, error = null)
                     startListeningInternal(preferOffline = false)
+                }
+                // Server disconnected mid-session → retry silently
+                error == ERROR_SERVER_DISCONNECTED -> {
+                    Log.d(TAG, "Server disconnected (error=11), retrying")
+                    _uiState.value = _uiState.value.copy(isListening = false, error = null, rmsDb = 0f)
+                    scope.launch {
+                        delay(500)
+                        startListeningInternal(preferOffline)
+                    }
                 }
                 // Recognizer busy or client error (previous session not released) → wait then retry
                 error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
@@ -186,7 +199,7 @@ class VoiceInputViewModel(private val appContext: Context) {
     fun cleanup() {
         recognizer?.destroy()
         recognizer = null
-        _uiState.value = _uiState.value.copy(isListening = false, isParsing = false)
+        _uiState.value = _uiState.value.copy(isListening = false, isParsing = false, rmsDb = 0f)
     }
 
     fun cancel() {

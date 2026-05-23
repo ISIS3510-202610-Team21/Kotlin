@@ -29,11 +29,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.sin
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -1415,8 +1419,8 @@ internal fun VoiceInputScreen(
         else voiceViewModel.stopListening()
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
+    val micTransition = rememberInfiniteTransition(label = "mic_pulse")
+    val pulseAlpha by micTransition.animateFloat(
         initialValue = 1f,
         targetValue  = 0.55f,
         animationSpec = infiniteRepeatable(
@@ -1572,7 +1576,7 @@ internal fun VoiceInputScreen(
                                         "Amount"   to buildVoiceAmountPreview(result, currencyState.activeCurrency),
                                         "Location" to (result.locationName?.replaceFirstChar { it.uppercase() } ?: "-"),
                                         "Date"     to (result.date ?: "-")
-                                    ).forEach { (label, value) ->
+                                    ).filter { (_, value) -> value != "-" }.forEach { (label, value) ->
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1621,6 +1625,22 @@ internal fun VoiceInputScreen(
                 }
 
                 // ── Mic button ────────────────────────────────────────────
+                // Espacio fijo: el waveform se dibuja aquí cuando está escuchando.
+                // Altura constante para que el botón no se mueva.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (uiState.isListening) {
+                        VoiceWaveform(
+                            rmsDb    = uiState.rmsDb,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .size(80.dp)
@@ -1655,6 +1675,45 @@ internal fun VoiceInputScreen(
                         fontSize   = 13.sp
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoiceWaveform(rmsDb: Float, modifier: Modifier = Modifier) {
+    val amplitude = (rmsDb / 10f).coerceIn(0f, 1f)
+    val barCount = 20
+
+    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
+    val animProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue  = (2.0 * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation  = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wave"
+    )
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            repeat(barCount) { i ->
+                val phase      = i * (2.0 * PI / barCount).toFloat()
+                val sinVal     = sin((animProgress + phase).toDouble()).toFloat()
+                val normalized = (sinVal + 1f) / 2f
+                val bellWeight = 1f - abs(i - barCount / 2f) / (barCount / 2f) * 0.35f
+                val barHeight  = (4f + normalized * 36f * amplitude * bellWeight).dp
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(barHeight)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(SpendAntGreen)
+                )
             }
         }
     }
