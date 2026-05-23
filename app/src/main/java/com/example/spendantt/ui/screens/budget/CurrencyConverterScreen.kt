@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.data.currency.CurrencyProvider
@@ -75,6 +76,40 @@ private val currencyCategory = mapOf(
     "CNY" to "Global Economy"
 )
 
+private val supportedCurrencies = listOf(
+    "COP",
+    "USD",
+    "EUR",
+    "GBP",
+    "JPY",
+    "CAD",
+    "AUD",
+    "MXN",
+    "BRL",
+    "CLP",
+    "PEN",
+    "ARS",
+    "CHF",
+    "CNY"
+)
+
+private val currencyDisplayName = mapOf(
+    "COP" to "Colombian Peso",
+    "USD" to "US Dollar",
+    "EUR" to "Euro",
+    "GBP" to "British Pound",
+    "JPY" to "Japanese Yen",
+    "CAD" to "Canadian Dollar",
+    "AUD" to "Australian Dollar",
+    "MXN" to "Mexican Peso",
+    "BRL" to "Brazilian Real",
+    "CLP" to "Chilean Peso",
+    "PEN" to "Peruvian Sol",
+    "ARS" to "Argentine Peso",
+    "CHF" to "Swiss Franc",
+    "CNY" to "Chinese Yuan"
+)
+
 private val largeNumberCurrencies = setOf("COP", "ARS", "CLP", "JPY")
 
 @Composable
@@ -89,9 +124,16 @@ fun CurrencyConverterScreen(
         selectedIso = currencyState.activeCurrency
     }
 
-    val selectedRate = currencyState.ratesCache[selectedIso] ?: 1.0
-    val listItems = remember(currencyState.ratesCache, selectedIso) {
-        currencyState.ratesCache.keys.filter { it != selectedIso }.sorted()
+    val filteredRates = remember(currencyState.ratesCache) {
+        buildMap {
+            supportedCurrencies.forEach { iso ->
+                put(iso, currencyState.ratesCache[iso] ?: if (iso == "COP") 1.0 else 1.0)
+            }
+        }
+    }
+    val selectedRate = filteredRates[selectedIso] ?: 1.0
+    val listItems = remember(filteredRates, selectedIso) {
+        supportedCurrencies.filter { it != selectedIso && filteredRates.containsKey(it) }
     }
 
     Column(
@@ -143,7 +185,6 @@ fun CurrencyConverterScreen(
                 AnimatedContent(selectedIso, modifier = Modifier.animateContentSize(), label = "currency_top_card") { iso ->
                     CurrencyCard(
                         iso = iso,
-                        selectedIso = iso,
                         accent = selectedAccent,
                         isSelected = true,
                         onClick = {},
@@ -164,11 +205,10 @@ fun CurrencyConverterScreen(
                 val accent = currencyColors[index % currencyColors.size]
                 CurrencyCard(
                     iso = iso,
-                    selectedIso = selectedIso,
                     accent = accent,
                     isSelected = false,
                     onClick = { selectedIso = iso },
-                    equivalence = buildEquivalenceLabel(selectedIso, iso, currencyState.ratesCache)
+                    equivalence = buildEquivalenceLabel(selectedIso, iso, filteredRates)
                 )
             }
         }
@@ -178,7 +218,6 @@ fun CurrencyConverterScreen(
 @Composable
 private fun CurrencyCard(
     iso: String,
-    selectedIso: String,
     accent: Color,
     isSelected: Boolean,
     equivalence: String,
@@ -220,7 +259,14 @@ private fun CurrencyCard(
                     .weight(1f)
                     .padding(start = 12.dp)
             ) {
-                Text(text = iso, color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    text = currencyDisplayName[iso] ?: iso,
+                    color = Color.Black,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
                 Text(
                     text = if (isSelected) "Current Currency" else (currencyCategory[iso] ?: "Global Economy"),
                     color = if (isSelected) selectedAccent else Color(0xFF5E5E5E),
@@ -231,7 +277,7 @@ private fun CurrencyCard(
             Text(
                 text = equivalence,
                 color = Color.Gray,
-                fontSize = if (isSelected) 15.sp else 14.sp,
+                fontSize = if (isSelected) 14.sp else 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -267,7 +313,7 @@ private fun buildEquivalenceLabel(
         }
         else -> {
             var leftValue = 1000.0
-            var rightValue = selectedFor1List * 1000.0
+            var rightValue = listFor1Selected * 1000.0
             while (rightValue < 1.0) {
                 leftValue *= 10
                 rightValue *= 10
