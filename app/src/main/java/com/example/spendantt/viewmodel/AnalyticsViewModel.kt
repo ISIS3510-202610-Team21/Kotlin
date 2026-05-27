@@ -8,6 +8,7 @@ import com.example.spendantt.util.AnalyticsHelper
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 class AnalyticsViewModel(
     private val context: Context,
@@ -24,6 +25,9 @@ class AnalyticsViewModel(
                 logBQ4MostActiveHour()
                 logBQ5SmallRecurringExpenses()
                 logBQ6RegistrationMethods()
+                logBQ7SavingsGoalProgress()
+                logBQ8BudgetMidpointConsumption()
+                logBQ9CategoryHighestGrowth()
             } catch (_: Exception) {
                 // Fallo silencioso — analytics no interrumpe el flujo
             }
@@ -94,6 +98,134 @@ class AnalyticsViewModel(
             manualCount = manual,
             ocrCount = ocr,
             googlePayCount = googlePay,
+        )
+    }
+
+    // ── BQ7: % meta de ahorro mensual alcanzada al día actual ─────────────────
+    private suspend fun logBQ7SavingsGoalProgress() {
+        val goals = db.goalDao().getActiveGoalsList(userId)
+        if (goals.isEmpty()) return
+
+        val totalTarget = goals.sumOf { it.targetAmount }
+        val totalCurrent = goals.sumOf { it.currentAmount }
+        if (totalTarget == 0.0) return
+
+        val achievedPercent = (totalCurrent / totalTarget * 100 * 10.0).roundToInt() / 10.0
+        AnalyticsHelper.logSavingsGoalProgress(
+            context = context,
+            userId = userId,
+            achievedPercent = achievedPercent,
+            goalsCount = goals.size,
+        )
+    }
+
+    // ── BQ8: % presupuesto consumido al punto medio del mes ──────────────────
+    private suspend fun logBQ8BudgetMidpointConsumption() {
+        val totalIncome = db.incomeDao().getTotalIncomeSnapshot(userId) ?: return
+        if (totalIncome == 0.0) return
+
+        val now = System.currentTimeMillis()
+        val cal = Calendar.getInstance()
+
+        // Inicio del mes actual
+        val startOfMonth = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+
+        // Si hoy es después del día 15, evaluamos hasta el cierre del día 15
+        val cutoff: Long
+        val evaluatedAtMidpoint: Boolean
+        if (dayOfMonth <= 15) {
+            cutoff = now
+            evaluatedAtMidpoint = false
+        } else {
+            cutoff = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 15)
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }.timeInMillis
+            evaluatedAtMidpoint = true
+        }
+
+        val totalSpent = db.expenseDao().getTotalSpentInRangeSnapshot(userId, startOfMonth, cutoff) ?: 0.0
+        val consumedPercent = (totalSpent / totalIncome * 100 * 10.0).roundToInt() / 10.0
+
+        AnalyticsHelper.logBudgetMidpointConsumption(
+            context = context,
+            userId = userId,
+            consumedPercent = consumedPercent,
+            evaluatedAtMidpoint = evaluatedAtMidpoint,
+        )
+    }
+
+    // ── BQ9: categoría con mayor crecimiento vs mismo período del mes anterior ─
+    private suspend fun logBQ9CategoryHighestGrowth() {
+        val now = System.currentTimeMillis()
+        val cal = Calendar.getInstance()
+        val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+
+        // Rango del mes actual: día 1 hasta hoy
+        val startCurrent = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        // Mismo período del mes anterior: día 1 hasta el mismo día del mes pasado
+        val startPrev = Calendar.getInstance().apply {
+            add(Calendar.MONTH, -1)
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val endPrev = Calendar.getInstance().apply {
+            add(Calendar.MONTH, -1)
+            set(Calendar.DAY_OF_MONTH, dayOfMonth)
+            set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
+        }.timeInMillis
+
+        val currentExpenses = db.expenseDao().getExpensesWithLabelsInRangeSnapshot(userId, startCurrent, now)
+        val prevExpenses = db.expenseDao().getExpensesWithLabelsInRangeSnapshot(userId, startPrev, endPrev)
+
+        // Agregar por primer label (o "Uncategorized" si no tiene)
+        fun aggregateByCategory(expenses: List<com.example.spendantt.data.local.entity.ExpenseWithLabels>): Map<String, Double> =
+            expenses.groupBy { it.labels.firstOrNull()?.name ?: "Uncategorized" }
+                .mapValues { (_, list) -> list.sumOf { it.expense.amount } }
+
+        val currentByCategory = aggregateByCategory(currentExpenses)
+        val prevByCategory = aggregateByCategory(prevExpenses)
+
+        if (currentByCategory.isEmpty()) return
+
+        val topEntry = currentByCategory.entries.mapNotNull { (cat, current) ->
+            val prev = prevByCategory[cat] ?: 0.0
+            val growth = when {
+                prev > 0 -> (current - prev) / prev * 100
+                current > 0 -> 100.0
+                else -> null
+            }
+            growth?.let { Triple(cat, current, prev) to it }
+        }.maxByOrNull { it.second } ?: return
+
+        val (triple, growthPercent) = topEntry
+        val (categoryName, currentAmt, prevAmt) = triple
+
+        AnalyticsHelper.logCategoryHighestGrowth(
+            context = context,
+            userId = userId,
+            categoryName = categoryName,
+            currentAmount = currentAmt,
+            previousAmount = prevAmt,
+            growthPercent = (growthPercent * 10.0).roundToInt() / 10.0,
         )
     }
 }
