@@ -99,5 +99,13 @@ interface ExpenseDao {
     @Query("SELECT COUNT(*) FROM expenses WHERE userId = :userId AND source = 'GOOGLE_PAY'")
     suspend fun countGooglePayExpenses(userId: Int): Int
 
+    // ── BQ8: total gastado en rango (one-shot para analytics) ─
+    @Query("SELECT SUM(amount) FROM expenses WHERE userId = :userId AND date BETWEEN :from AND :to")
+    suspend fun getTotalSpentInRangeSnapshot(userId: Int, from: Long, to: Long): Double?
+
+    // ── BQ9: gastos con labels en rango (one-shot para analytics) ─
+    @Transaction
+    @Query("SELECT * FROM expenses WHERE userId = :userId AND date BETWEEN :from AND :to")
+    suspend fun getExpensesWithLabelsInRangeSnapshot(userId: Int, from: Long, to: Long): List<ExpenseWithLabels>
 
 }
