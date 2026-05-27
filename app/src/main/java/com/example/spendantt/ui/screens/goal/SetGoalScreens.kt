@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendantt.R
+import com.example.spendantt.data.currency.CurrencyMinimums
 import com.example.spendantt.data.currency.CurrencyProvider
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -75,6 +76,7 @@ fun SetGoalFlowScreen(
     var saveError by remember { mutableStateOf<String?>(null) }
 
     val amountValue = amount.toLongOrNull() ?: 0L
+    val minimumGoalAmount = CurrencyMinimums.goalMinimumFor(currencyState.activeCurrency).toLong()
     val formattedAmount = "${currencyState.activeCurrency} ${formatNumber(amountValue)}"
     val safeAmount = if (amountValue > 0L) formattedAmount else "${currencyState.activeCurrency} 0"
     val safePurpose = purpose.ifBlank { "your goal" }
@@ -123,8 +125,8 @@ fun SetGoalFlowScreen(
                 },
                 onBackClick = { currentStep = 0 },
                 onContinueClick = {
-                    if (amountValue < MIN_GOAL_AMOUNT) {
-                        amountError = "Goal amount must be at least 1."
+                    if (amountValue < minimumGoalAmount) {
+                        amountError = "Goal amount must be at least ${formatNumber(minimumGoalAmount)} ${currencyState.activeCurrency}."
                     } else {
                         amountError = null
                         currentStep = 2
@@ -161,7 +163,7 @@ fun SetGoalFlowScreen(
                 onBackClick = { currentStep = 2 },
                 onAlrightClick = {
                     val deadlineMillis = targetDateMillis
-                    if (amountValue >= MIN_GOAL_AMOUNT && deadlineMillis != null && purpose.isNotBlank() && daysRemaining > 0) {
+                    if (amountValue >= minimumGoalAmount && deadlineMillis != null && purpose.isNotBlank() && daysRemaining > 0) {
                         coroutineScope.launch {
                             saveError = onSaveGoal(
                                 purpose.trim(),
@@ -175,7 +177,8 @@ fun SetGoalFlowScreen(
                         }
                     } else {
                         saveError = when {
-                            amountValue < MIN_GOAL_AMOUNT -> "Goal amount must be at least 1."
+                            amountValue < minimumGoalAmount ->
+                                "Goal amount must be at least ${formatNumber(minimumGoalAmount)} ${currencyState.activeCurrency}."
                             deadlineMillis == null || daysRemaining <= 0 -> "Goal date must be after today."
                             purpose.isBlank() -> "Goal name cannot be empty."
                             else -> "Please complete all goal fields."
@@ -629,8 +632,6 @@ private fun utcTodayMillis(): Long {
     }
     return utcCalendar.timeInMillis
 }
-
-private const val MIN_GOAL_AMOUNT = 1L
 
 private fun normalizeToLocalStartOfDay(dateMillis: Long): Long {
     val utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {

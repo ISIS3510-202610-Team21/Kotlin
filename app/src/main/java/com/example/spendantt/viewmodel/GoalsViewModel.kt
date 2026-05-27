@@ -6,6 +6,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.spendantt.data.currency.CurrencyMinimums
 import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.currency.CurrencyUiState
 import com.example.spendantt.data.local.AppDatabase
@@ -87,6 +88,12 @@ class GoalsViewModel(
         _isSavingGoal.value = true
         return try {
             val activeCurrency = CurrencyProvider.activeCurrency
+            val minimumAmountInActiveCurrency = CurrencyMinimums.goalMinimumFor(activeCurrency)
+            val minimumAmountInCop = if (activeCurrency == "COP") {
+                minimumAmountInActiveCurrency
+            } else {
+                CurrencyProvider.convertToCOP(minimumAmountInActiveCurrency)
+            }
             val targetAmountCop = if (activeCurrency == "COP") targetAmount else CurrencyProvider.convertToCOP(targetAmount)
             val createdAt = startOfTodayMillis()
             val incomes = incomeRepository.getIncomesByUser(userId).first()
@@ -101,8 +108,8 @@ class GoalsViewModel(
                 return message
             }
 
-            if (targetAmountCop < MIN_GOAL_TARGET_AMOUNT) {
-                val message = "Goal amount must be at least 1."
+            if (targetAmount < minimumAmountInActiveCurrency || targetAmountCop < minimumAmountInCop) {
+                val message = "Goal amount must be at least ${CurrencyProvider.formatValue(minimumAmountInActiveCurrency)} $activeCurrency."
                 _goalLimitError.value = message
                 return message
             }
@@ -254,6 +261,5 @@ class GoalsViewModel(
 
     companion object {
         private const val MAX_CACHED_GOALS = 20
-        private const val MIN_GOAL_TARGET_AMOUNT = 1.0
     }
 }
