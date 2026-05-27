@@ -20,6 +20,8 @@ data class CurrencyUiState(
 )
 
 object CurrencyProvider {
+    // Santiago Gomez | Cache
+    // Keeps the active currency and exchange rates in memory so currency reads stay instant across the app.
     private val mutex = Mutex()
     private val decimalSymbols = DecimalFormatSymbols(Locale.US)
     private val largeFormatter = DecimalFormat("#,##0", decimalSymbols)

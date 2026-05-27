@@ -124,7 +124,7 @@ fun SetGoalFlowScreen(
                 onBackClick = { currentStep = 0 },
                 onContinueClick = {
                     if (amountValue < MIN_GOAL_AMOUNT) {
-                        amountError = "Goal amount must be at least 50."
+                        amountError = "Goal amount must be at least 1."
                     } else {
                         amountError = null
                         currentStep = 2
@@ -175,7 +175,7 @@ fun SetGoalFlowScreen(
                         }
                     } else {
                         saveError = when {
-                            amountValue < MIN_GOAL_AMOUNT -> "Goal amount must be at least 50."
+                            amountValue < MIN_GOAL_AMOUNT -> "Goal amount must be at least 1."
                             deadlineMillis == null || daysRemaining <= 0 -> "Goal date must be after today."
                             purpose.isBlank() -> "Goal name cannot be empty."
                             else -> "Please complete all goal fields."
@@ -630,7 +630,7 @@ private fun utcTodayMillis(): Long {
     return utcCalendar.timeInMillis
 }
 
-private const val MIN_GOAL_AMOUNT = 50L
+private const val MIN_GOAL_AMOUNT = 1L
 
 private fun normalizeToLocalStartOfDay(dateMillis: Long): Long {
     val utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {

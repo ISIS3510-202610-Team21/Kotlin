@@ -102,7 +102,7 @@ class GoalsViewModel(
             }
 
             if (targetAmountCop < MIN_GOAL_TARGET_AMOUNT) {
-                val message = "Goal amount must be at least 50."
+                val message = "Goal amount must be at least 1."
                 _goalLimitError.value = message
                 return message
             }
@@ -254,6 +254,6 @@ class GoalsViewModel(
 
     companion object {
         private const val MAX_CACHED_GOALS = 20
-        private const val MIN_GOAL_TARGET_AMOUNT = 50.0
+        private const val MIN_GOAL_TARGET_AMOUNT = 1.0
     }
 }
