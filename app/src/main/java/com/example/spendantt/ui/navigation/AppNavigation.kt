@@ -37,7 +37,9 @@ import com.example.spendantt.ui.screens.expense.NewExpenseScreen
 import com.example.spendantt.ui.screens.goal.GoalsRoute
 import com.example.spendantt.ui.screens.home.HomeScreen
 import com.example.spendantt.ui.screens.notifications.NotificationsScreen
+import com.example.spendantt.ui.screens.report.ReportFlowScreen
 import com.example.spendantt.viewmodel.BudgetViewModel
+import com.example.spendantt.viewmodel.ReportViewModel
 import com.example.spendantt.viewmodel.GoalsViewModel
 import com.example.spendantt.viewmodel.HomeViewModel
 import com.example.spendantt.viewmodel.LoginViewModel
@@ -66,6 +68,7 @@ sealed class Screen(val route: String) {
     object NewExpense : Screen("new_expense")
     object ExpenseDetail : Screen("expense_detail")
     object Notifications : Screen("notifications")
+    object Report : Screen("report")
 }
 
 private val routesWithoutNavBar = listOf(
@@ -81,7 +84,8 @@ private val routesWithoutNavBar = listOf(
     Screen.NewExpense.route,
     Screen.ExpenseDetail.route,
     Screen.EditProfile.route,
-    Screen.Notifications.route
+    Screen.Notifications.route,
+    Screen.Report.route
 )
 
 @Composable
@@ -334,7 +338,19 @@ fun AppNavigation(
                     onIncomeClick = { navController.navigate(Screen.Budget.route) },
                     onGoalsClick = { navController.navigate(Screen.Goals.route) },
                     onCurrencyClick = { navController.navigate(Screen.CurrencyConverter.route) },
-                    onEditClick = { navController.navigate(Screen.EditProfile.route) }
+                    onEditClick = { navController.navigate(Screen.EditProfile.route) },
+                    onSummaryClick = { navController.navigate(Screen.Report.route) }
+                )
+            }
+
+            composable(Screen.Report.route) {
+                if (currentUserId == null) return@composable
+                val reportViewModel = remember(currentUserId) {
+                    ReportViewModel(context, currentUserId)
+                }
+                ReportFlowScreen(
+                    viewModel = reportViewModel,
+                    onExit = { navController.popBackStack() },
                 )
             }
 
