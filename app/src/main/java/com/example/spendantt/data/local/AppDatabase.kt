@@ -11,6 +11,7 @@ import com.example.spendantt.data.local.dao.ExchangeRateDao
 import com.example.spendantt.data.local.dao.GoalDao
 import com.example.spendantt.data.local.dao.IncomeDao
 import com.example.spendantt.data.local.dao.LabelDao
+import com.example.spendantt.data.local.dao.ReportCacheDao
 import com.example.spendantt.data.local.dao.UserDao
 import com.example.spendantt.data.local.entity.ExpenseEntity
 import com.example.spendantt.data.local.entity.ExpenseLabelCrossRef
@@ -18,6 +19,7 @@ import com.example.spendantt.data.local.entity.ExchangeRateEntity
 import com.example.spendantt.data.local.entity.GoalEntity
 import com.example.spendantt.data.local.entity.IncomeEntity
 import com.example.spendantt.data.local.entity.LabelEntity
+import com.example.spendantt.data.local.entity.ReportCacheEntity
 import com.example.spendantt.data.local.entity.UserEntity
 
 /**
@@ -37,9 +39,10 @@ import com.example.spendantt.data.local.entity.UserEntity
         ExpenseLabelCrossRef::class,
         IncomeEntity::class,
         GoalEntity::class,
-        ExchangeRateEntity::class
+        ExchangeRateEntity::class,
+        ReportCacheEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 // LOCAL STORAGE | Dilan | 10pts | BD Relacional Room: userDao() — UserEntity persistida en SQLite; usada en LoginViewModel y RegisterViewModel para autenticación local
@@ -52,6 +55,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun incomeDao(): IncomeDao
     abstract fun goalDao(): GoalDao
     abstract fun exchangeRateDao(): ExchangeRateDao
+    abstract fun reportCacheDao(): ReportCacheDao
 
     companion object {
         private const val DATABASE_NAME = "spendant_db"
@@ -66,7 +70,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance
@@ -84,6 +88,20 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE labels ADD COLUMN category TEXT")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS report_cache (" +
+                        "cacheKey TEXT NOT NULL PRIMARY KEY, " +
+                        "userId INTEGER NOT NULL, " +
+                        "startEpochDay INTEGER NOT NULL, " +
+                        "endEpochDay INTEGER NOT NULL, " +
+                        "reportJson TEXT NOT NULL, " +
+                        "generatedAt INTEGER NOT NULL)"
+                )
             }
         }
 

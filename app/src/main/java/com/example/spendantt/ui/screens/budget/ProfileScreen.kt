@@ -69,6 +69,7 @@ fun ProfileScreen(
     onGoalsClick: () -> Unit,
     onCurrencyClick: () -> Unit,
     onEditClick: () -> Unit,
+    onSummaryClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val exportResult by viewModel.exportResult.collectAsState()
@@ -205,7 +206,7 @@ fun ProfileScreen(
                 ProfileActionButton(
                     icon = Icons.AutoMirrored.Filled.Article,
                     label = "Summary",
-                    onClick = { viewModel.exportUserData(context) },
+                    onClick = onSummaryClick,
                     modifier = Modifier.weight(1f)
                 )
             }

@@ -30,6 +30,10 @@ interface IncomeDao {
     @Query("SELECT * FROM incomes WHERE userId = :userId AND nextOccurrenceDate <= :timestamp")
     suspend fun getUpcomingRecurringIncomes(userId: Int, timestamp: Long): List<IncomeEntity>
 
+    // ── BQ8: total ingresos (one-shot para analytics) ─────────
+    @Query("SELECT SUM(amount) FROM incomes WHERE userId = :userId")
+    suspend fun getTotalIncomeSnapshot(userId: Int): Double?
+
     @Update
     suspend fun updateIncome(income: IncomeEntity)
 

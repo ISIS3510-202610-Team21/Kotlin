@@ -36,6 +36,10 @@ interface GoalDao {
     @Query("UPDATE goals SET isCompleted = 1 WHERE id = :goalId")
     suspend fun markAsCompleted(goalId: Int)
 
+    // ── BQ7: metas activas (one-shot para analytics) ──────────
+    @Query("SELECT * FROM goals WHERE userId = :userId AND isCompleted = 0")
+    suspend fun getActiveGoalsList(userId: Int): List<GoalEntity>
+
     @Update
     suspend fun updateGoal(goal: GoalEntity)
 

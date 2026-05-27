@@ -117,4 +117,67 @@ object AnalyticsHelper {
             }
         }
     }
+
+    // ── BQ7: % meta de ahorro mensual alcanzada ───────────────────────────────
+    fun logSavingsGoalProgress(
+        context: Context,
+        userId: Int,
+        achievedPercent: Double,
+        goalsCount: Int,
+    ) {
+        android.util.Log.d("ANALYTICS", "savings_goal_progress = $achievedPercent% (goals=$goalsCount)")
+        scope.launch {
+            runCatching {
+                mp(context).track("savings_goal_progress", JSONObject().apply {
+                    put("user_id", userId)
+                    put("achieved_percent", achievedPercent)
+                    put("active_goals_count", goalsCount)
+                    put("is_on_track", achievedPercent >= 50.0)
+                })
+            }
+        }
+    }
+
+    // ── BQ8: % presupuesto consumido al punto medio del mes ───────────────────
+    fun logBudgetMidpointConsumption(
+        context: Context,
+        userId: Int,
+        consumedPercent: Double,
+        evaluatedAtMidpoint: Boolean,
+    ) {
+        android.util.Log.d("ANALYTICS", "budget_midpoint_consumption = $consumedPercent% (midpoint=$evaluatedAtMidpoint)")
+        scope.launch {
+            runCatching {
+                mp(context).track("budget_midpoint_consumption", JSONObject().apply {
+                    put("user_id", userId)
+                    put("consumed_percent", consumedPercent)
+                    put("evaluated_at_midpoint", evaluatedAtMidpoint)
+                    put("is_overspending", consumedPercent > 50.0 && evaluatedAtMidpoint)
+                })
+            }
+        }
+    }
+
+    // ── BQ9: categoría con mayor crecimiento vs mes anterior ─────────────────
+    fun logCategoryHighestGrowth(
+        context: Context,
+        userId: Int,
+        categoryName: String,
+        currentAmount: Double,
+        previousAmount: Double,
+        growthPercent: Double,
+    ) {
+        android.util.Log.d("ANALYTICS", "category_highest_growth = $categoryName ($growthPercent%)")
+        scope.launch {
+            runCatching {
+                mp(context).track("category_highest_growth", JSONObject().apply {
+                    put("user_id", userId)
+                    put("category_name", categoryName)
+                    put("current_amount", currentAmount)
+                    put("previous_amount", previousAmount)
+                    put("growth_percent", growthPercent)
+                })
+            }
+        }
+    }
 }
