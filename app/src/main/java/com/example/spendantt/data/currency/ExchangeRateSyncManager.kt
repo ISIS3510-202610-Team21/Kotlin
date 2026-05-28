@@ -2,6 +2,7 @@ package com.example.spendantt.data.currency
 
 import android.content.Context
 import com.example.spendantt.data.local.AppDatabase
+import com.example.spendantt.data.local.ExchangeRateFileStore
 import com.example.spendantt.data.local.entity.ExchangeRateEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,14 +16,15 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 object ExchangeRateSyncManager {
-    // Santiago Gomez | Multithreading
-    // Runs remote exchange-rate fetches and Room writes on Dispatchers.IO to avoid blocking the UI thread.
     private const val ENDPOINT =
         "https://v6.exchangerate-api.com/v6/e7941c395b69b36c36cad7eb/latest/COP"
 
     suspend fun triggerIfNeeded(context: Context) {
         val appContext = context.applicationContext
         val database = AppDatabase.getInstance(appContext)
+        // Santiago Gomez | Multithreading | 5 pts
+        // Dispatchers.IO is used for Room reads so the cached exchange rates are loaded
+        // from local storage without blocking the main thread.
         val exchangeRates = withContext(Dispatchers.IO) { database.exchangeRateDao().getAllRates() }
 
         val requiresUpdate = if (exchangeRates.isEmpty()) {
@@ -42,14 +44,35 @@ object ExchangeRateSyncManager {
             return
         }
 
-        val fetchedRates = fetchRates()
-        withContext(Dispatchers.IO) {
-            database.exchangeRateDao().upsertRates(fetchedRates)
+        val syncResult = runCatching { fetchRatesPayload() }
+        syncResult.onSuccess { payload ->
+            withContext(Dispatchers.IO) {
+                database.exchangeRateDao().upsertRates(payload.rates)
+            }
+            withContext(Dispatchers.IO) {
+                ExchangeRateFileStore.saveRatesBackup(appContext, payload.rawJson)
+            }
+            CurrencyProvider.refreshCacheFromDb(appContext)
+            return
         }
+
+        if (exchangeRates.isEmpty()) {
+            val backupRates = withContext(Dispatchers.IO) {
+                ExchangeRateFileStore.loadRatesBackup(appContext)?.let(::parseRatesFromJson)
+            }
+            if (!backupRates.isNullOrEmpty()) {
+                withContext(Dispatchers.IO) {
+                    database.exchangeRateDao().upsertRates(backupRates)
+                }
+            }
+        }
+
         CurrencyProvider.refreshCacheFromDb(appContext)
     }
 
-    private suspend fun fetchRates(): List<ExchangeRateEntity> = withContext(Dispatchers.IO) {
+    private suspend fun fetchRatesPayload(): ExchangeRatePayload = withContext(Dispatchers.IO) {
+        // Santiago Gomez | Multithreading | 5 pts
+        // Dispatchers.IO runs the HTTP request and JSON parsing for exchange rates off the UI thread.
         val connection = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 15_000
@@ -61,11 +84,18 @@ object ExchangeRateSyncManager {
         }
 
         val body = connection.inputStream.bufferedReader().use { it.readText() }
-        val root = JSONObject(body)
+        ExchangeRatePayload(
+            rates = parseRatesFromJson(body),
+            rawJson = body
+        )
+    }
+
+    private fun parseRatesFromJson(rawJson: String): List<ExchangeRateEntity> {
+        val root = JSONObject(rawJson)
         val rates = root.getJSONObject("conversion_rates")
         val fetchedAt = System.currentTimeMillis()
 
-        buildList {
+        return buildList {
             val keys = rates.keys()
             while (keys.hasNext()) {
                 val currency = keys.next()
@@ -79,4 +109,9 @@ object ExchangeRateSyncManager {
             }
         }
     }
+
+    private data class ExchangeRatePayload(
+        val rates: List<ExchangeRateEntity>,
+        val rawJson: String
+    )
 }
