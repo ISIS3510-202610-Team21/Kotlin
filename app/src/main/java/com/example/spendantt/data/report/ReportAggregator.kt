@@ -1,5 +1,6 @@
 package com.example.spendantt.data.report
 
+import android.util.LruCache
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
 import com.example.spendantt.data.local.entity.GoalEntity
 import java.text.DecimalFormat
@@ -25,6 +26,9 @@ object ReportAggregator {
     private const val SMALL_RECURRING_THRESHOLD_COP = 50_000.0
     private const val MICRO_PURCHASE_THRESHOLD_COP = 5_000.0
 
+    // CACHE | William | 5 pts | LruCache de hasta 10 reportes agregados en memoria; clave start_end_expenseCount_currency_goalCount evita recalcular el mismo período si el usuario navega entre rangos en la misma sesión
+    private val cache = LruCache<String, FinancialReport>(10)
+
     fun build(
         allExpensesAllTime: List<ExpenseWithLabels>,
         startDate: LocalDate,
@@ -37,6 +41,9 @@ object ReportAggregator {
         zoneId: ZoneId = ZoneId.systemDefault(),
         now: Instant = Instant.now(),
     ): FinancialReport {
+
+        val cacheKey = "${startDate}_${endDate}_${allExpensesAllTime.size}_${displayCurrency}_${activeGoals.size}"
+        cache.get(cacheKey)?.let { return it }
 
         val periodExpenses = allExpensesAllTime.filter {
             val d = Instant.ofEpochMilli(it.expense.date).atZone(zoneId).toLocalDate()
@@ -105,7 +112,7 @@ object ReportAggregator {
             now = now,
         )
 
-        return FinancialReport(
+        val report = FinancialReport(
             startDate = startDate,
             endDate = endDate,
             periodLabel = formatPeriodLabel(startDate, endDate),
@@ -120,6 +127,8 @@ object ReportAggregator {
             mostActiveWeekday = mostActiveWeekday,
             bqInsights = bqInsights,
         )
+        cache.put(cacheKey, report)
+        return report
     }
 
     private fun buildBqInsights(

@@ -15,7 +15,6 @@ class ReportRepository(private val appContext: Context) {
         appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    // CACHE | William | 5 pts | Reporte serializado como JSON en Room con TTL de 24 h; clave userId_start_end evita regenerar el mismo reporte si ya existe uno vigente
     /** Returns the cached report when it exists and is younger than [TTL_MILLIS]. */
     suspend fun getCached(userId: Int, start: LocalDate, end: LocalDate): FinancialReport? = withContext(Dispatchers.IO) {
         val key = buildKey(userId, start, end)
