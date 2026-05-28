@@ -15,6 +15,8 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 object ExchangeRateSyncManager {
+    // Santiago Gomez | Multithreading
+    // Runs remote exchange-rate fetches and Room writes on Dispatchers.IO to avoid blocking the UI thread.
     private const val ENDPOINT =
         "https://v6.exchangerate-api.com/v6/e7941c395b69b36c36cad7eb/latest/COP"
 
