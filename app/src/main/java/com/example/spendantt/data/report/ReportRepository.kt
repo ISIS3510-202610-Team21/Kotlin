@@ -15,6 +15,7 @@ class ReportRepository(private val appContext: Context) {
         appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    // CACHE | William | 5 pts | Reporte serializado como JSON en Room con TTL de 24 h; clave userId_start_end evita regenerar el mismo reporte si ya existe uno vigente
     /** Returns the cached report when it exists and is younger than [TTL_MILLIS]. */
     suspend fun getCached(userId: Int, start: LocalDate, end: LocalDate): FinancialReport? = withContext(Dispatchers.IO) {
         val key = buildKey(userId, start, end)
@@ -48,6 +49,7 @@ class ReportRepository(private val appContext: Context) {
         runCatching { FinancialReportJson.decode(row.reportJson) }.getOrNull()
     }
 
+    // MULTI-THREADING | William | 5 pts | Pipeline IO → Default → IO: Dispatchers.IO para lecturas de BD y escritura de caché, Dispatchers.Default para agregación CPU-intensiva, manteniendo el hilo principal libre
     /**
      * Generates a new report and persists it to the cache.
      * The heavy work runs on [Dispatchers.Default] so the UI thread stays responsive.
@@ -59,8 +61,12 @@ class ReportRepository(private val appContext: Context) {
         displayCurrency: String,
         displayRate: Double,
     ): FinancialReport {
-        val allExpenses = withContext(Dispatchers.IO) {
-            db.expenseDao().getExpensesWithLabels(userId).first()
+        val (allExpenses, activeGoals, totalIncomeCop) = withContext(Dispatchers.IO) {
+            Triple(
+                db.expenseDao().getExpensesWithLabels(userId).first(),
+                db.goalDao().getActiveGoalsList(userId),
+                db.incomeDao().getTotalIncomeSnapshot(userId) ?: 0.0,
+            )
         }
 
         val newCount = bumpUsageCounter(userId)
@@ -73,6 +79,8 @@ class ReportRepository(private val appContext: Context) {
                 displayCurrency = displayCurrency,
                 displayRate = displayRate,
                 reportsGeneratedCount = newCount,
+                activeGoals = activeGoals,
+                totalIncomeCop = totalIncomeCop,
             )
         }
 

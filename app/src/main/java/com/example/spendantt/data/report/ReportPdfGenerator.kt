@@ -73,6 +73,7 @@ class ReportPdfGenerator(private val context: Context) {
         var cursorY: Float = 0f
     }
 
+    // LOCAL STORAGE | William | 5 pts | PDF generado y escrito a disco con FileOutputStream en Dispatchers.IO; el archivo persiste en caché interna de la app listo para compartir o exportar
     suspend fun generate(report: FinancialReport): File = withContext(Dispatchers.IO) {
         val pdf = PdfDocument()
         val ctx = PageContext(pdf, report)

@@ -1,6 +1,7 @@
 package com.example.spendantt.data.report
 
 import com.example.spendantt.data.local.entity.ExpenseWithLabels
+import com.example.spendantt.data.local.entity.GoalEntity
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.DayOfWeek
@@ -31,6 +32,8 @@ object ReportAggregator {
         displayCurrency: String,
         displayRate: Double,
         reportsGeneratedCount: Int,
+        activeGoals: List<GoalEntity> = emptyList(),
+        totalIncomeCop: Double = 0.0,
         zoneId: ZoneId = ZoneId.systemDefault(),
         now: Instant = Instant.now(),
     ): FinancialReport {
@@ -96,6 +99,8 @@ object ReportAggregator {
             displayCurrency = displayCurrency,
             displayRate = displayRate,
             reportsGeneratedCount = reportsGeneratedCount,
+            activeGoals = activeGoals,
+            totalIncomeCop = totalIncomeCop,
             zoneId = zoneId,
             now = now,
         )
@@ -125,6 +130,8 @@ object ReportAggregator {
         displayCurrency: String,
         displayRate: Double,
         reportsGeneratedCount: Int,
+        activeGoals: List<GoalEntity>,
+        totalIncomeCop: Double,
         zoneId: ZoneId,
         now: Instant,
     ): List<String> {
@@ -135,11 +142,10 @@ object ReportAggregator {
         val lastExpenseMillis = allExpensesAllTime.maxOfOrNull { it.expense.date }
         if (lastExpenseMillis != null) {
             val lastDate = Instant.ofEpochMilli(lastExpenseMillis).atZone(zoneId).toLocalDate()
-            val days = java.time.temporal.ChronoUnit.DAYS.between(lastDate, today).toInt().coerceAtLeast(0)
+            val days = (java.time.temporal.ChronoUnit.DAYS.between(lastDate, today).toInt() + 1).coerceAtLeast(1)
             insights.add(
                 when (days) {
-                    0 -> "You registered an expense today"
-                    1 -> "1 day since your last registered expense"
+                    1 -> "You registered an expense today"
                     else -> "$days days since your last registered expense"
                 }
             )
@@ -204,6 +210,86 @@ object ReportAggregator {
         if (reportsGeneratedCount > 0) {
             insights.add("You have generated $reportsGeneratedCount reports so far")
         }
+
+        // BQ7: Savings goal progress
+        try {
+            if (activeGoals.isNotEmpty()) {
+                val totalTarget = activeGoals.sumOf { it.targetAmount }
+                val totalCurrent = activeGoals.sumOf { it.currentAmount }
+                if (totalTarget > 0) {
+                    val avgPct = (totalCurrent / totalTarget * 100).roundToInt()
+                    val goalWord = if (activeGoals.size == 1) "goal" else "goals"
+                    val status = if (avgPct >= 50) "on track" else "behind target"
+                    insights.add("Savings goals: $avgPct% achieved on average across ${activeGoals.size} active $goalWord ($status)")
+                }
+            }
+        } catch (_: Exception) {}
+
+        // BQ8: Budget midpoint consumption
+        try {
+            if (totalIncomeCop > 0) {
+                val startOfMonth = today.withDayOfMonth(1)
+                val currentMonthSpent = allExpensesAllTime.filter {
+                    val d = Instant.ofEpochMilli(it.expense.date).atZone(zoneId).toLocalDate()
+                    !d.isBefore(startOfMonth) && !d.isAfter(today)
+                }.sumOf { it.expense.amount }
+                val consumedPct = (currentMonthSpent / totalIncomeCop * 100).roundToInt()
+                val daysInMonth = today.lengthOfMonth()
+                val pastMidpoint = today.dayOfMonth >= daysInMonth / 2
+                val text = if (pastMidpoint && consumedPct > 50) {
+                    "Monthly budget: $consumedPct% consumed past the midpoint — overspending risk"
+                } else {
+                    "Monthly budget: $consumedPct% consumed so far this month"
+                }
+                insights.add(text)
+            }
+        } catch (_: Exception) {}
+
+        // BQ9: Highest category spending growth vs previous month
+        try {
+            val startOfCurrentMonth = today.withDayOfMonth(1)
+            val startOfPrevMonth = startOfCurrentMonth.minusMonths(1)
+            val prevMonthDay = minOf(today.dayOfMonth, startOfPrevMonth.lengthOfMonth())
+            val endOfPrevPeriod = startOfPrevMonth.withDayOfMonth(prevMonthDay)
+
+            fun groupByCategory(expenses: List<ExpenseWithLabels>): Map<String, Double> =
+                expenses.groupBy { it.labels.firstOrNull()?.name ?: "Other" }
+                    .mapValues { (_, list) -> list.sumOf { it.expense.amount } }
+
+            val currentByCategory = groupByCategory(
+                allExpensesAllTime.filter {
+                    val d = Instant.ofEpochMilli(it.expense.date).atZone(zoneId).toLocalDate()
+                    !d.isBefore(startOfCurrentMonth) && !d.isAfter(today)
+                }
+            )
+            val prevByCategory = groupByCategory(
+                allExpensesAllTime.filter {
+                    val d = Instant.ofEpochMilli(it.expense.date).atZone(zoneId).toLocalDate()
+                    !d.isBefore(startOfPrevMonth) && !d.isAfter(endOfPrevPeriod)
+                }
+            )
+
+            if (currentByCategory.isNotEmpty()) {
+                data class GrowthEntry(val cat: String, val current: Double, val prev: Double, val growth: Double)
+                val top = currentByCategory.entries.mapNotNull { (cat, current) ->
+                    val prev = prevByCategory[cat] ?: 0.0
+                    when {
+                        prev > 0 -> GrowthEntry(cat, current, prev, (current - prev) / prev * 100)
+                        current > 0 -> GrowthEntry(cat, current, 0.0, Double.MAX_VALUE)
+                        else -> null
+                    }
+                }.maxByOrNull { it.growth }
+
+                if (top != null) {
+                    val text = if (top.prev == 0.0) {
+                        "New spending category this month: ${top.cat} (${formatCurrency(top.current, displayCurrency, displayRate)})"
+                    } else {
+                        "Highest category growth: ${top.cat} +${top.growth.roundToInt()}% vs last month (${formatCurrency(top.current, displayCurrency, displayRate)})"
+                    }
+                    insights.add(text)
+                }
+            }
+        } catch (_: Exception) {}
 
         return insights
     }
