@@ -94,7 +94,7 @@ object CurrencyProvider {
         return if (value >= 10.0) {
             largeFormatter.format(value)
         } else {
-            compactFormatter.format(value).trimEnd('0').trimEnd('.')
+            compactFormatter.format(value).trimEnd('0').trimEnd('.').ifEmpty { "0" }
         }
     }
 

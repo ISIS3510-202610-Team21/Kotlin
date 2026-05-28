@@ -1677,6 +1677,47 @@ internal fun VoiceInputScreen(
                 }
             }
         }
+
+        if (uiState.needsConnectivity) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0x99000000))
+                    .clickable(enabled = true, onClick = {}),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = SpendAntWhite,
+                    tonalElevation = 8.dp,
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text       = "No internet connection",
+                            color      = SpendAntBlack,
+                            fontSize   = 16.sp,
+                            fontFamily = SpendAntFontFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign  = TextAlign.Center
+                        )
+                        Text(
+                            text       = "Voice recognition requires internet on this device. Connect to continue.",
+                            color      = Color(0xFF777777),
+                            fontSize   = 13.sp,
+                            fontFamily = SpendAntFontFamily,
+                            textAlign  = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

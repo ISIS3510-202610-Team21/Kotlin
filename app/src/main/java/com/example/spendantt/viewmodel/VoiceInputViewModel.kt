@@ -12,6 +12,7 @@ import com.example.spendantt.data.currency.CurrencyProvider
 import com.example.spendantt.data.local.VoiceDraftDataStore
 import com.example.spendantt.data.voice.VoiceExpenseParser
 import com.example.spendantt.data.voice.VoiceParseResult
+import com.example.spendantt.util.ConnectivityObserver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,7 +43,8 @@ data class VoiceInputUiState(
     val isParsing: Boolean            = false,
     val hasParsedResult: Boolean      = false,
     val error: String?                = null,
-    val rmsDb: Float                  = 0f
+    val rmsDb: Float                  = 0f,
+    val needsConnectivity: Boolean    = false
 )
 
 class VoiceInputViewModel(private val appContext: Context) {
@@ -54,7 +56,16 @@ class VoiceInputViewModel(private val appContext: Context) {
     private val _uiState = MutableStateFlow(VoiceInputUiState())
     val uiState: StateFlow<VoiceInputUiState> = _uiState
 
-    init { loadDraft() }
+    init {
+        loadDraft()
+        scope.launch {
+            ConnectivityObserver.isConnected.collect { connected ->
+                if (connected && _uiState.value.needsConnectivity) {
+                    _uiState.value = _uiState.value.copy(needsConnectivity = false)
+                }
+            }
+        }
+    }
 
     // ── Draft persistence ────────────────────────────────────────────────────
 
@@ -168,6 +179,14 @@ class VoiceInputViewModel(private val appContext: Context) {
                         delay(600)
                         startListeningInternal(preferOffline)
                     }
+                }
+                // No internet after exhausting offline fallback → show blocking overlay
+                error == SpeechRecognizer.ERROR_NETWORK ||
+                error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> {
+                    Log.d(TAG, "No internet after offline fallback (error=$error)")
+                    _uiState.value = _uiState.value.copy(
+                        isListening = false, error = null, rmsDb = 0f, needsConnectivity = true
+                    )
                 }
                 else -> {
                     _uiState.value = _uiState.value.copy(

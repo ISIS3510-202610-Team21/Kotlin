@@ -135,7 +135,7 @@ class ReportViewModel(
 
     companion object {
         fun millisToLocalDate(millis: Long): LocalDate =
-            java.time.Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+            java.time.Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
 
         fun localDateToMillis(date: LocalDate): Long =
             date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
