@@ -39,6 +39,9 @@ class MainActivity : AppCompatActivity() {
         NotificationTimeSanitizer.sanitizeIfNeeded(this, "app_create")
         NotificationSyncScheduler.schedulePeriodic(this)
         ConnectivityObserver.register(this)
+        // Santiago Gomez | Multithreading | 10 pts
+        // Main coroutine that starts the currency bootstrap asynchronously on app launch
+        // so the UI can render while the provider load and sync decision happen in background.
         lifecycleScope.launch {
             CurrencyProvider.loadFromDb(this@MainActivity)
             runCatching { ExchangeRateSyncManager.triggerIfNeeded(this@MainActivity) }
